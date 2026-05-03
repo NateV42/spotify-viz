@@ -21,7 +21,7 @@
   #overlay { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; padding: 120px 40px 32px; background: linear-gradient(transparent, rgba(0,0,0,0.93)); display: flex; flex-direction: column; gap: 10px; }
   #lyrics-block { text-align: center; min-height: 5rem; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; margin-bottom: 8px; }
   #lyric-prev { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 0.08em; color: rgba(255,255,255,0.18); transition: all 0.5s; }
-  #lyric-current { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; letter-spacing: 0.07em; color: #fff; text-shadow: 0 0 40px var(--theme-glow, rgba(255,255,255,0.5)); transition: all 0.4s; line-height: 1.1; }
+  #lyric-current { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; letter-spacing: 0.07em; color: #fff; text-shadow: 0 0 40px var(--theme-glow, rgba(255,255,255,0.5)); transition: color 0.6s, text-shadow 0.6s; line-height: 1.1; }
   #lyric-next { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 0.08em; color: rgba(255,255,255,0.22); transition: all 0.5s; }
   #theme-label { text-align: center; font-size: 0.52rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,0.18); min-height: 1rem; transition: color 0.8s; }
   #track-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
@@ -127,8 +127,7 @@ const SCOPES       = 'user-read-currently-playing user-read-playback-state';
 const YT_KEY       = 'AIzaSyCDR7-_K3eMUaijeS7zo0nD1gv0vnDIs4Y';
 const HA_URL       = 'http://homeassistant.local:8123';
 const HA_TOKEN     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI3MWU4MzZjZmMxMjY0NjMzOTc3NDEzYjVjNDc1NWUxZCIsImlhdCI6MTc3Nzg0NDUxNywiZXhwIjoyMDkzMjA0NTE3fQ.isDztHb5r-xuHTFMBfm5fep9mhdssU73NhmDWIhu5RE';
-const ANT_KEY      = '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';
-const YT_START_SEC = 10;
+const YT_START     = 10;
 
 let accessToken    = null;
 let currentTrackId = null;
@@ -141,15 +140,42 @@ let analyser       = null;
 let allLights      = [];
 let selectedLights = [];
 let lastLightBeat  = 0;
-let lightColorIdx  = 0;
 let syncedLyrics   = [];
 let currentLyricIdx= -1;
 let playbackMs     = 0;
 let lastPollAt     = 0;
-let aiProcessing   = false;
-let lastAILine     = '';
-let aiQueue        = [];
 
+// ── KEYWORD THEME ENGINE (replaces Claude API) ────────────────────────────────
+const THEME_KEYWORDS = {
+  money:  ['money','cash','dollar','rich','wealth','bank','paid','check','bands','guap','bread','paper','hustle','grind','boss','drip','gold','spend','bought','buy','sell','profit','coin','bills','stack','bag','flex'],
+  fire:   ['fire','burn','flame','hot','heat','blaze','lit','smoke','ash','inferno','torch','ignite','spark','sizzle','scorched','blazing','hell','demon','devil','rage','angry','furious','explode','bomb'],
+  love:   ['love','heart','kiss','baby','babe','darling','forever','together','hold','touch','feel','romance','roses','beautiful','gorgeous','lovely','adore','cherish','miss','need','want','dream of you','eyes','smile','soul','honey'],
+  space:  ['space','stars','galaxy','universe','planet','moon','sky','cosmos','orbit','infinite','beyond','light years','supernova','rocket','float','gravity','astral','celestial','midnight','heaven','above','fly','higher','cloud'],
+  rain:   ['rain','storm','thunder','lightning','wet','tears','cry','pour','flood','drown','water','waves','ocean','river','drops','hurricane','cloud','grey','gray','dark sky','umbrella','cold night'],
+  party:  ['party','dance','club','night','turn up','lit','vibe','shot','drink','drunk','celebrate','dj','bass','crowd','wild','crazy','jump','bounce','move','groove','banger','loud','anthem'],
+  nature: ['trees','flowers','garden','green','nature','forest','birds','breeze','sunshine','meadow','bloom','grow','earth','spring','leaves','petals','butterflies','peaceful','serene','alive','grass','mountains','fresh'],
+  cold:   ['cold','ice','frozen','winter','snow','freeze','chill','numb','alone','empty','hollow','dark','lonely','lost','silence','quiet','nothing','void','distant','far','gone','leaving'],
+  dark:   ['dark','shadow','death','die','blood','knife','gun','war','pain','suffer','broken','shattered','chaos','destroy','hate','revenge','enemy','villain','monster','fear','nightmare','trapped','falling'],
+  energy: ['run','fast','power','strong','unstoppable','champion','win','fight','warrior','beast','hustle','grind','never stop','push','drive','fuel','electric','charged','surge','rush','speed','go'],
+  sad:    ['sad','hurt','pain','cry','broken','alone','miss','gone','lost','leave','goodbye','over','end','empty','hollow','depression','tears','heartbreak','regret','sorry','wish','remember','used to'],
+  dream:  ['dream','imagine','wonder','magic','fantasy','wish','hope','believe','vision','surreal','floating','ethereal','clouds','escape','another world','free','transcend','beyond','infinite','possibilities','tomorrow'],
+};
+
+function detectTheme(text) {
+  if (!text) return 'default';
+  const lower = text.toLowerCase();
+  const scores = {};
+  for (const [theme, words] of Object.entries(THEME_KEYWORDS)) {
+    scores[theme] = 0;
+    for (const word of words) {
+      if (lower.includes(word)) scores[theme] += word.split(' ').length; // multi-word phrases score higher
+    }
+  }
+  const best = Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
+  return best[1] > 0 ? best[0] : 'default';
+}
+
+// ── THEMES ────────────────────────────────────────────────────────────────────
 const THEMES = {
   money:   { hBase:45,  hAccent:55,  hTriad:30,  pType:'money',  bg:'gold',   fx:null },
   fire:    { hBase:10,  hAccent:30,  hTriad:50,  pType:'fire',   bg:'fire',   fx:null },
@@ -166,6 +192,14 @@ const THEMES = {
   default: { hBase:200, hAccent:340, hTriad:60,  pType:'spark',  bg:'club',   fx:null },
 };
 let theme = { ...THEMES.default, name:'default' };
+
+function setTheme(name) {
+  if (!THEMES[name] || name === theme.name) return;
+  theme = { ...THEMES[name], name };
+  document.getElementById('theme-label').textContent = name;
+  document.documentElement.style.setProperty('--theme-glow', `hsla(${theme.hBase},90%,65%,0.7)`);
+  document.getElementById('lyric-current').style.color = `hsl(${theme.hBase},95%,85%)`;
+}
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function genVerifier() {
@@ -199,13 +233,13 @@ async function searchYT(artist, track) {
   try {
     const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${YT_KEY}`);
     const d = await r.json();
-    if (d.items && d.items.length>0) return d.items[0].id.videoId;
-  } catch(e) {}
+    if (d.items && d.items.length > 0) return d.items[0].id.videoId;
+  } catch(e) { console.warn('YT search failed', e); }
   return null;
 }
 function embedYT(videoId) {
   const el = document.getElementById('yt-embed');
-  el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&controls=0&loop=1&playlist=${videoId}&start=${YT_START_SEC}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&controls=0&loop=1&playlist=${videoId}&start=${YT_START}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
   el.style.display = videoHidden ? 'none' : 'block';
   document.getElementById('mode-badge').textContent = 'Visualizer + Video';
 }
@@ -231,10 +265,11 @@ async function fetchLyrics(artist, track, album) {
       const lines = d.plainLyrics.split('\n').filter(l=>l.trim());
       syncedLyrics = lines.map((text,i)=>({ time:(i/lines.length)*180000, text }));
     }
-  } catch(e) {}
+    console.log(`Lyrics: ${syncedLyrics.length} lines found`);
+  } catch(e) { console.warn('Lyrics failed', e); }
 }
 function parseLRC(lrc) {
-  return lrc.split('\n').reduce((acc, line) => {
+  return lrc.split('\n').reduce((acc,line) => {
     const m = line.match(/^\[(\d+):(\d+\.\d+)\](.*)/);
     if (m) {
       const ms = parseInt(m[1])*60000 + parseFloat(m[2])*1000;
@@ -248,6 +283,7 @@ function clearLyricDisplay() {
   document.getElementById('lyric-prev').textContent = '';
   document.getElementById('lyric-current').textContent = '';
   document.getElementById('lyric-next').textContent = '';
+  document.getElementById('theme-label').textContent = '';
 }
 function tickLyrics() {
   if (!syncedLyrics.length) return;
@@ -265,46 +301,11 @@ function tickLyrics() {
     document.getElementById('lyric-prev').textContent    = prev ? prev.text : '';
     document.getElementById('lyric-current').textContent = cur.text;
     document.getElementById('lyric-next').textContent    = next ? next.text : '';
-    const ctx = [prev, cur, next].filter(Boolean).map(l=>l.text).join(' / ');
-    queueAI(cur.text, ctx);
+    // Instant local theme detection — no API needed
+    const context = [prev, cur, next].filter(Boolean).map(l=>l.text).join(' ');
+    const detected = detectTheme(context);
+    setTheme(detected);
   }
-}
-
-// ── AI THEME ──────────────────────────────────────────────────────────────────
-function queueAI(line, context) {
-  if (line === lastAILine) return;
-  lastAILine = line;
-  aiQueue = [{ line, context }];
-  if (!aiProcessing) drainAI();
-}
-async function drainAI() {
-  if (!aiQueue.length) { aiProcessing=false; return; }
-  aiProcessing = true;
-  const { line, context } = aiQueue.shift();
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'x-api-key':ANT_KEY, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-client-side-fetch-allowed':'true' },
-      body: JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:30,
-        system:'You pick the best visual theme for a song lyric. Reply ONLY with one JSON object, no markdown: {"theme":"X"} where X is one of: money fire love space rain party nature cold dark energy sad dream default',
-        messages:[{ role:'user', content:`Lyric: "${line}"\nContext: "${context}"` }]
-      })
-    });
-    const d = await r.json();
-    const text = (d.content && d.content[0]) ? d.content[0].text.trim() : '';
-    const parsed = JSON.parse(text);
-    if (parsed.theme && THEMES[parsed.theme]) setTheme(parsed.theme);
-  } catch(e) {}
-  setTimeout(drainAI, 50);
-}
-function setTheme(name) {
-  if (name === theme.name) return;
-  theme = { ...THEMES[name], name };
-  document.getElementById('theme-label').textContent = name;
-  document.documentElement.style.setProperty('--theme-glow', `hsla(${theme.hBase},90%,65%,0.7)`);
-  document.getElementById('lyric-current').style.color = `hsl(${theme.hBase},95%,85%)`;
 }
 
 // ── HOME ASSISTANT ────────────────────────────────────────────────────────────
@@ -333,7 +334,7 @@ function renderLightsList() {
     div.className = 'light-item'+(sel?' selected':'');
     div.innerHTML = `<div class="light-dot"></div><div class="light-name">${light.attributes.friendly_name||light.entity_id}</div><div class="light-check">✓</div>`;
     div.onclick = () => {
-      selectedLights = selectedLights.includes(light.entity_id) ? selectedLights.filter(id=>id!==light.entity_id) : [...selectedLights, light.entity_id];
+      selectedLights = selectedLights.includes(light.entity_id) ? selectedLights.filter(id=>id!==light.entity_id) : [...selectedLights,light.entity_id];
       div.classList.toggle('selected', selectedLights.includes(light.entity_id));
       div.querySelector('.light-check').style.opacity = selectedLights.includes(light.entity_id)?'1':'0';
     };
@@ -355,7 +356,7 @@ async function syncLights(pulse, energy) {
   lastLightBeat = now;
   const brightness = Math.round(130+energy*120);
   selectedLights.forEach(id=>haPost('/services/light/turn_on',{ entity_id:id, hs_color:[theme.hBase,100], brightness, transition:0 }));
-  setTimeout(()=>{ if (!lightsActive) return; selectedLights.forEach(id=>haPost('/services/light/turn_on',{ entity_id:id, brightness:Math.round(15+energy*35), transition:0 })); }, 110);
+  setTimeout(()=>{ if(!lightsActive) return; selectedLights.forEach(id=>haPost('/services/light/turn_on',{ entity_id:id, brightness:Math.round(15+energy*35), transition:0 })); }, 110);
 }
 
 // ── MIC ───────────────────────────────────────────────────────────────────────
@@ -373,9 +374,9 @@ function startVis(features) {
   if (animFrame) cancelAnimationFrame(animFrame);
   const canvas = document.getElementById('canvas');
   const ctx    = canvas.getContext('2d');
-  const tempo        = (features&&features.tempo)        || 120;
-  const energy       = (features&&features.energy)       || 0.5;
-  const danceability = (features&&features.danceability) || 0.5;
+  const tempo        = (features&&features.tempo)||120;
+  const energy       = (features&&features.energy)||0.5;
+  const danceability = (features&&features.danceability)||0.5;
   const beatMs       = 60000/tempo;
 
   function resize() { canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
@@ -390,11 +391,9 @@ function startVis(features) {
 
   const NUM_L = Math.round(5+energy*9);
   const lasers = Array.from({length:NUM_L},(_,i)=>({ angle:(i/NUM_L)*Math.PI*2, speed:(Math.random()-.5)*0.007*(1+energy), width:Math.random()*1.5+0.5 }));
-
-  const smoke = Array.from({length:40},()=>mkSmoke());
+  const smoke  = Array.from({length:40},()=>mkSmoke());
   function mkSmoke() { return { x:Math.random()*canvas.width, y:canvas.height+20, vx:(Math.random()-.5)*0.5, vy:-(Math.random()*1+0.3), size:Math.random()*150+80, alpha:Math.random()*0.03+0.007, life:1 }; }
-
-  const stars = Array.from({length:220},()=>({ x:Math.random(), y:Math.random(), r:Math.random()*1.5+0.3, tw:Math.random()*Math.PI*2 }));
+  const stars  = Array.from({length:220},()=>({ x:Math.random(), y:Math.random(), r:Math.random()*1.5+0.3, tw:Math.random()*Math.PI*2 }));
 
   let lastBeat=performance.now(), beatPhase=0, subBeat=0, time=0;
   const RING=220, BARS=100;
@@ -434,34 +433,25 @@ function startVis(features) {
     const T=theme, hB=T.hBase, hA=T.hAccent, hT=T.hTriad;
     const elapsed=now-lastBeat;
     if (elapsed>=beatMs) { lastBeat=now; beatPhase=1.0; subBeat=(subBeat+1)%4; syncLights(beatPhase,energy); }
-    beatPhase *= (0.78+danceability*0.12);
+    beatPhase*=(0.78+danceability*0.12);
     let mic=0;
     if (analyser) { const b=new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(b); mic=b.reduce((a,v)=>a+v,0)/b.length/255; }
     const pulse=Math.max(beatPhase,mic*1.8);
     const cx=canvas.width/2, cy=canvas.height/2, baseR=Math.min(canvas.width,canvas.height)*0.22;
 
-    // BG fade
     ctx.fillStyle=`rgba(0,0,0,${0.07+(1-energy)*0.05})`; ctx.fillRect(0,0,canvas.width,canvas.height);
 
     // BG styles
-    if (T.bg==='space'||T.bg==='dream') {
-      stars.forEach(s=>{ s.tw+=0.01; const tw=0.5+0.5*Math.sin(s.tw); ctx.beginPath(); ctx.arc(s.x*canvas.width,s.y*canvas.height,s.r*tw,0,Math.PI*2); ctx.fillStyle=`rgba(200,220,255,${0.3*tw+pulse*0.2})`; ctx.fill(); });
+    if (T.bg==='space'||T.bg==='dream'||T.bg==='cold') {
+      stars.forEach(s=>{ s.tw+=0.01; const tw=0.5+0.5*Math.sin(s.tw); ctx.beginPath(); ctx.arc(s.x*canvas.width,s.y*canvas.height,s.r*tw,0,Math.PI*2); ctx.fillStyle=`rgba(200,220,255,${0.3*tw+pulse*0.18})`; ctx.fill(); });
     }
-    if (T.bg==='fire') {
-      const fg=ctx.createLinearGradient(0,canvas.height,0,canvas.height*0.4); fg.addColorStop(0,`hsla(15,100%,25%,${0.08+pulse*0.12})`); fg.addColorStop(1,'transparent'); ctx.fillStyle=fg; ctx.fillRect(0,0,canvas.width,canvas.height);
-    }
-    if (T.bg==='gold') {
-      const gg=ctx.createRadialGradient(cx,cy,0,cx,cy,canvas.width*0.7); gg.addColorStop(0,`hsla(45,100%,28%,${0.07+pulse*0.1})`); gg.addColorStop(1,'transparent'); ctx.fillStyle=gg; ctx.fillRect(0,0,canvas.width,canvas.height);
-    }
-    if (T.bg==='ocean'||T.bg==='sad') {
-      const og=ctx.createLinearGradient(0,0,0,canvas.height); og.addColorStop(0,`hsla(210,80%,8%,${0.05+pulse*0.06})`); og.addColorStop(1,`hsla(190,80%,4%,0.04)`); ctx.fillStyle=og; ctx.fillRect(0,0,canvas.width,canvas.height);
-    }
-    if (T.bg==='forest') {
-      const fg=ctx.createLinearGradient(0,canvas.height,0,0); fg.addColorStop(0,`hsla(120,60%,8%,${0.07+pulse*0.08})`); fg.addColorStop(1,'transparent'); ctx.fillStyle=fg; ctx.fillRect(0,0,canvas.width,canvas.height);
-    }
+    if (T.bg==='fire') { const fg=ctx.createLinearGradient(0,canvas.height,0,canvas.height*0.4); fg.addColorStop(0,`hsla(15,100%,25%,${0.08+pulse*0.12})`); fg.addColorStop(1,'transparent'); ctx.fillStyle=fg; ctx.fillRect(0,0,canvas.width,canvas.height); }
+    if (T.bg==='gold') { const gg=ctx.createRadialGradient(cx,cy,0,cx,cy,canvas.width*0.7); gg.addColorStop(0,`hsla(45,100%,28%,${0.07+pulse*0.1})`); gg.addColorStop(1,'transparent'); ctx.fillStyle=gg; ctx.fillRect(0,0,canvas.width,canvas.height); }
+    if (T.bg==='ocean'||T.bg==='sad') { const og=ctx.createLinearGradient(0,0,0,canvas.height); og.addColorStop(0,`hsla(210,80%,8%,${0.05+pulse*0.06})`); og.addColorStop(1,`hsla(190,80%,4%,0.04)`); ctx.fillStyle=og; ctx.fillRect(0,0,canvas.width,canvas.height); }
+    if (T.bg==='forest') { const fg=ctx.createLinearGradient(0,canvas.height,0,0); fg.addColorStop(0,`hsla(120,60%,8%,${0.07+pulse*0.08})`); fg.addColorStop(1,'transparent'); ctx.fillStyle=fg; ctx.fillRect(0,0,canvas.width,canvas.height); }
 
     // Smoke
-    if (T.bg==='club'||T.bg==='neon'||T.bg==='void'||T.bg==='gold') {
+    if (['club','neon','void','gold'].includes(T.bg)) {
       smoke.forEach((s,i)=>{ s.x+=s.vx; s.y+=s.vy; s.life-=0.0012; if(s.life<=0||s.y<-s.size){smoke[i]=mkSmoke();return;} const sg=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size*(1+pulse*0.2)); sg.addColorStop(0,`hsla(${hB+10},20%,50%,${s.alpha*(0.4+pulse*0.5)})`); sg.addColorStop(1,'transparent'); ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(s.x,s.y,s.size,0,Math.PI*2); ctx.fill(); });
     }
 
@@ -471,28 +461,31 @@ function startVis(features) {
     }
 
     // Glow rings
-    for (let i=5;i>=1;i--) { const r=baseR*i*(1+pulse*0.38*((6-i)/5)), a=0.022+pulse*0.085*(i/5); const g=ctx.createRadialGradient(cx,cy,r*0.1,cx,cy,r); g.addColorStop(0,`hsla(${hB+i*20},80%,58%,${a*1.8})`); g.addColorStop(0.5,`hsla(${hA},65%,45%,${a})`); g.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill(); }
+    for (let i=5;i>=1;i--) { const r=baseR*i*(1+pulse*0.38*((6-i)/5)),a=0.022+pulse*0.085*(i/5); const g=ctx.createRadialGradient(cx,cy,r*0.1,cx,cy,r); g.addColorStop(0,`hsla(${hB+i*20},80%,58%,${a*1.8})`); g.addColorStop(0.5,`hsla(${hA},65%,45%,${a})`); g.addColorStop(1,'transparent'); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill(); }
 
     // Lasers
-    lasers.forEach((l,i)=>{ const lh=(hB+i*(360/NUM_L))%360; l.angle+=l.speed*(1+pulse*3.5); const len=Math.max(canvas.width,canvas.height)*1.7, la=0.05+pulse*0.35; const x2=cx+Math.cos(l.angle)*len, y2=cy+Math.sin(l.angle)*len; const lg=ctx.createLinearGradient(cx,cy,x2,y2); lg.addColorStop(0,`hsla(${lh},100%,72%,${la})`); lg.addColorStop(0.3,`hsla(${lh},90%,60%,${la*0.3})`); lg.addColorStop(1,'transparent'); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x2,y2); ctx.strokeStyle=lg; ctx.lineWidth=l.width*(1+pulse*5); ctx.stroke(); const x3=cx-Math.cos(l.angle)*len, y3=cy-Math.sin(l.angle)*len; const lg2=ctx.createLinearGradient(cx,cy,x3,y3); lg2.addColorStop(0,`hsla(${(lh+180)%360},100%,72%,${la})`); lg2.addColorStop(1,'transparent'); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x3,y3); ctx.strokeStyle=lg2; ctx.lineWidth=l.width*(1+pulse*5); ctx.stroke(); });
+    lasers.forEach((l,i)=>{ const lh=(hB+i*(360/NUM_L))%360; l.angle+=l.speed*(1+pulse*3.5); const len=Math.max(canvas.width,canvas.height)*1.7, la=0.05+pulse*0.35; const x2=cx+Math.cos(l.angle)*len,y2=cy+Math.sin(l.angle)*len; const lg=ctx.createLinearGradient(cx,cy,x2,y2); lg.addColorStop(0,`hsla(${lh},100%,72%,${la})`); lg.addColorStop(0.3,`hsla(${lh},90%,60%,${la*0.3})`); lg.addColorStop(1,'transparent'); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x2,y2); ctx.strokeStyle=lg; ctx.lineWidth=l.width*(1+pulse*5); ctx.stroke(); const x3=cx-Math.cos(l.angle)*len,y3=cy-Math.sin(l.angle)*len; const lg2=ctx.createLinearGradient(cx,cy,x3,y3); lg2.addColorStop(0,`hsla(${(lh+180)%360},100%,72%,${la})`); lg2.addColorStop(1,'transparent'); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x3,y3); ctx.strokeStyle=lg2; ctx.lineWidth=l.width*(1+pulse*5); ctx.stroke(); });
 
-    // Tunnel fx
-    if (T.fx==='tunnel') { for (let t=0;t<10;t++) { const tr=baseR*(0.1+t*0.09+pulse*0.04)*(1+Math.sin(time*0.4+t)*0.04); ctx.beginPath(); for (let s=0;s<=6;s++) { const a=(s/6)*Math.PI*2-Math.PI/6+time*0.25*(t%2===0?1:-1); (s===0?ctx.moveTo:ctx.lineTo).call(ctx,cx+Math.cos(a)*tr,cy+Math.sin(a)*tr); } ctx.closePath(); ctx.strokeStyle=`hsla(${(hT+t*25)%360},80%,65%,${0.07+pulse*0.25})`; ctx.lineWidth=0.8+pulse; ctx.stroke(); } }
+    // Tunnel
+    if (T.fx==='tunnel') { for (let t=0;t<10;t++) { const tr=baseR*(0.1+t*0.09+pulse*0.04); ctx.beginPath(); for (let s=0;s<=6;s++) { const a=(s/6)*Math.PI*2-Math.PI/6+time*0.25*(t%2===0?1:-1); (s===0?ctx.moveTo:ctx.lineTo).call(ctx,cx+Math.cos(a)*tr,cy+Math.sin(a)*tr); } ctx.closePath(); ctx.strokeStyle=`hsla(${(hT+t*25)%360},80%,65%,${0.07+pulse*0.25})`; ctx.lineWidth=0.8+pulse; ctx.stroke(); } }
 
     // Waveform rings
-    for (let ring=0;ring<2;ring++) { ctx.beginPath(); for (let i=0;i<=RING;i++) { const a=(i/RING)*Math.PI*2-Math.PI/2+ring*0.05, w=Math.sin(i*0.15+time*(2.5+ring*1.2))*0.5+Math.sin(i*0.07+time*(1.3+ring*0.8))*0.5+Math.sin(i*0.3+time*4+pulse*2)*0.3*pulse, dist=baseR*((ring===0?0.85:0.76)+w*0.1*energy+pulse*(0.22-ring*0.06)); ctx.lineTo(cx+Math.cos(a)*dist,cy+Math.sin(a)*dist); } ctx.closePath(); ctx.strokeStyle=`hsla(${ring===0?hB:hA},88%,68%,${(0.28-ring*0.1)+pulse*(0.5-ring*0.15)})`; ctx.lineWidth=(1.5-ring*0.5)+pulse*(3-ring*0.8); ctx.stroke(); }
+    for (let ring=0;ring<2;ring++) { ctx.beginPath(); for (let i=0;i<=RING;i++) { const a=(i/RING)*Math.PI*2-Math.PI/2+ring*0.05,w=Math.sin(i*0.15+time*(2.5+ring*1.2))*0.5+Math.sin(i*0.07+time*(1.3+ring*0.8))*0.5+Math.sin(i*0.3+time*4+pulse*2)*0.3*pulse,dist=baseR*((ring===0?0.85:0.76)+w*0.1*energy+pulse*(0.22-ring*0.06)); (i===0?ctx.moveTo:ctx.lineTo).call(ctx,cx+Math.cos(a)*dist,cy+Math.sin(a)*dist); } ctx.closePath(); ctx.strokeStyle=`hsla(${ring===0?hB:hA},88%,68%,${(0.28-ring*0.1)+pulse*(0.5-ring*0.15)})`; ctx.lineWidth=(1.5-ring*0.5)+pulse*(3-ring*0.8); ctx.stroke(); }
 
     // Bar ring
-    for (let i=0;i<BARS;i++) { const a=(i/BARS)*Math.PI*2-Math.PI/2, bp=pulse*(0.5+0.5*Math.abs(Math.sin(i*0.2+time*2.1+subBeat*0.8))), iR=baseR*1.02, oR=iR+baseR*(0.05+bp*energy*1.5); ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*iR,cy+Math.sin(a)*iR); ctx.lineTo(cx+Math.cos(a)*oR,cy+Math.sin(a)*oR); ctx.strokeStyle=`hsla(${(hB+i*(260/BARS))%360},95%,70%,${0.35+bp*0.65})`; ctx.lineWidth=2+pulse*2.5; ctx.stroke(); }
+    for (let i=0;i<BARS;i++) { const a=(i/BARS)*Math.PI*2-Math.PI/2,bp=pulse*(0.5+0.5*Math.abs(Math.sin(i*0.2+time*2.1+subBeat*0.8))),iR=baseR*1.02,oR=iR+baseR*(0.05+bp*energy*1.5); ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*iR,cy+Math.sin(a)*iR); ctx.lineTo(cx+Math.cos(a)*oR,cy+Math.sin(a)*oR); ctx.strokeStyle=`hsla(${(hB+i*(260/BARS))%360},95%,70%,${0.35+bp*0.65})`; ctx.lineWidth=2+pulse*2.5; ctx.stroke(); }
 
     // Orb
-    const orbR=baseR*(0.17+pulse*0.2), og=ctx.createRadialGradient(cx,cy,0,cx,cy,orbR); og.addColorStop(0,`hsla(${hB},100%,94%,${0.5+pulse*0.5})`); og.addColorStop(0.35,`hsla(${hA},88%,68%,${0.28+pulse*0.38})`); og.addColorStop(1,`hsla(${hT},70%,40%,0)`); ctx.beginPath(); ctx.arc(cx,cy,orbR,0,Math.PI*2); ctx.fillStyle=og; ctx.fill();
+    const orbR=baseR*(0.17+pulse*0.2),og=ctx.createRadialGradient(cx,cy,0,cx,cy,orbR); og.addColorStop(0,`hsla(${hB},100%,94%,${0.5+pulse*0.5})`); og.addColorStop(0.35,`hsla(${hA},88%,68%,${0.28+pulse*0.38})`); og.addColorStop(1,`hsla(${hT},70%,40%,0)`); ctx.beginPath(); ctx.arc(cx,cy,orbR,0,Math.PI*2); ctx.fillStyle=og; ctx.fill();
 
     // Particles
     particles.forEach((p,idx)=>{
       if (Math.random()<0.008) { p.type=theme.pType; p.hue=theme.hBase+Math.random()*60-30; }
       p.trail.push({x:p.x,y:p.y}); if(p.trail.length>10) p.trail.shift();
-      if(p.type==='rain'){p.vy=Math.abs(p.vy)*1.02+0.5;} else if(p.type==='snow'){p.vx+=Math.sin(time+p.life*10)*0.05;p.vy=Math.abs(p.vy)*0.3+0.2;} else if(p.type==='fire'){p.vy-=0.08;p.vx+=(Math.random()-.5)*0.1;} else if(p.type==='money'){p.vy+=0.04;p.vx+=Math.sin(time*2+p.life*5)*0.05;}
+      if(p.type==='rain'){p.vy=Math.abs(p.vy)*1.02+0.5;}
+      else if(p.type==='snow'){p.vx+=Math.sin(time+p.life*10)*0.05;p.vy=Math.abs(p.vy)*0.3+0.2;}
+      else if(p.type==='fire'){p.vy-=0.08;p.vx+=(Math.random()-.5)*0.1;}
+      else if(p.type==='money'){p.vy+=0.04;p.vx+=Math.sin(time*2+p.life*5)*0.05;}
       p.x+=p.vx*(1+pulse*2.5); p.y+=p.vy*(1+pulse*2); p.life-=0.003+pulse*0.005;
       if(p.life<=0||p.x<-30||p.x>canvas.width+30||p.y<-30||p.y>canvas.height+30){particles[idx]=spawnP();return;}
       if(p.trail.length>2&&p.type==='spark'){ctx.beginPath();ctx.moveTo(p.trail[0].x,p.trail[0].y);p.trail.forEach(pt=>ctx.lineTo(pt.x,pt.y));ctx.strokeStyle=`hsla(${p.hue},80%,65%,${p.life*0.22})`;ctx.lineWidth=p.r*0.5;ctx.stroke();}
@@ -515,9 +508,9 @@ function startVis(features) {
 
 // ── CONTROLS ──────────────────────────────────────────────────────────────────
 function toggleVideo() {
-  videoHidden = !videoHidden;
-  document.getElementById('vid-btn').textContent = videoHidden ? 'Show Video' : 'Hide Video';
-  document.getElementById('yt-embed').style.display = videoHidden ? 'none' : 'block';
+  videoHidden=!videoHidden;
+  document.getElementById('vid-btn').textContent=videoHidden?'Show Video':'Hide Video';
+  document.getElementById('yt-embed').style.display=videoHidden?'none':'block';
 }
 function toggleFullscreen() { if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
 function logout() { accessToken=null; currentTrackId=null; clearInterval(pollTimer); if(animFrame) cancelAnimationFrame(animFrame); document.getElementById('player').style.display='none'; document.getElementById('login-screen').style.display='flex'; }
@@ -538,8 +531,10 @@ async function poll() {
     document.getElementById('artist-name').textContent=artist;
     document.getElementById('status').style.display='none';
     playbackMs=data.progress_ms||0; lastPollAt=Date.now();
+
     if (track.id!==currentTrackId) {
-      currentTrackId=track.id; setTheme('default');
+      currentTrackId=track.id;
+      setTheme('default');
       audioFeatures = await spotifyGet('/audio-features/'+track.id);
       if (audioFeatures&&audioFeatures.tempo) document.getElementById('bpm-display').textContent=Math.round(audioFeatures.tempo)+' BPM';
       const [videoId] = await Promise.all([
@@ -547,10 +542,9 @@ async function poll() {
         fetchLyrics(track.artists[0].name,track.name,track.album&&track.album.name)
       ]);
       if (videoId) embedYT(videoId); else clearYT();
-      document.getElementById('mode-badge').textContent = videoId ? 'Visualizer + Video' : 'Visualizer';
       startVis(audioFeatures);
     }
-  } catch(e) { console.warn(e); }
+  } catch(e) { console.warn('Poll error',e); }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -566,7 +560,7 @@ async function init() {
       await tryMic();
       await poll();
       pollTimer = setInterval(poll,4000);
-    } catch(e) { alert('Auth failed. Redirect URI must match exactly: '+REDIRECT_URI); }
+    } catch(e) { alert('Auth failed. Redirect URI must match: '+REDIRECT_URI); }
   }
 }
 init();
