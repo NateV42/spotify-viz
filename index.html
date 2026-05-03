@@ -3,208 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spotify Visualizer</title>
+<title>Vizify</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; color: #fff; font-family: 'DM Mono', monospace; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 
-  body {
-    background: #000;
-    color: #fff;
-    font-family: 'DM Mono', monospace;
-    height: 100vh;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  #login-screen { display: flex; flex-direction: column; align-items: center; animation: fadeIn 1.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 5.5rem; letter-spacing: 0.14em; line-height: 1; background: linear-gradient(135deg, #1DB954, #00d4ff 60%, #b060ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 0.4rem; }
+  .sub { font-size: 0.65rem; letter-spacing: 0.35em; color: #444; text-transform: uppercase; margin-bottom: 3rem; }
+  .connect-btn { background: #1DB954; color: #000; border: none; padding: 15px 52px; border-radius: 40px; font-family: 'DM Mono', monospace; font-size: 0.8rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 0 50px rgba(29,185,84,0.25); }
+  .connect-btn:hover { transform: scale(1.05); box-shadow: 0 0 70px rgba(29,185,84,0.5); }
 
-  /* LOGIN */
-  #login-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-    animation: fadeIn 1s ease;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  #player { display: none; width: 100vw; height: 100vh; position: relative; }
+  #yt-embed { position: absolute; inset: 0; z-index: 1; display: none; }
+  #yt-embed iframe { width: 100%; height: 100%; border: none; }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; z-index: 1; }
 
-  #login-screen .logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 5rem;
-    letter-spacing: 0.12em;
-    line-height: 1;
-    background: linear-gradient(135deg, #1DB954 0%, #00d4ff 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 0.5rem;
-  }
-  #login-screen .sub {
-    font-size: 0.7rem;
-    letter-spacing: 0.3em;
-    color: #555;
-    text-transform: uppercase;
-    margin-bottom: 3rem;
-  }
-  .connect-btn {
-    background: #1DB954;
-    color: #000;
-    border: none;
-    padding: 16px 48px;
-    border-radius: 40px;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 400;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-    box-shadow: 0 0 40px rgba(29,185,84,0.3);
-  }
-  .connect-btn:hover {
-    transform: scale(1.04);
-    box-shadow: 0 0 60px rgba(29,185,84,0.5);
-  }
+  #overlay { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; padding: 80px 40px 28px; background: linear-gradient(transparent, rgba(0,0,0,0.95)); display: flex; flex-direction: column; gap: 12px; }
+  #lyrics-line { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.08em; color: #fff; text-shadow: 0 0 30px rgba(255,255,255,0.4); min-height: 2.6rem; transition: opacity 0.4s; text-align: center; display: none; }
+  #track-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+  #track-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; letter-spacing: 0.07em; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65vw; }
+  #artist-name { font-size: 0.68rem; letter-spacing: 0.22em; color: #666; margin-top: 5px; text-transform: uppercase; }
+  #right-hud { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  #mode-badge { font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: #1DB954; border: 1px solid rgba(29,185,84,0.3); border-radius: 20px; padding: 4px 13px; }
+  #bpm-display { font-size: 0.58rem; letter-spacing: 0.15em; color: #333; }
 
-  /* PLAYER */
-  #player {
-    display: none;
-    width: 100vw;
-    height: 100vh;
-    position: relative;
-  }
-
-  /* YOUTUBE */
-  #yt-embed {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-  }
-  #yt-embed iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-  }
-
-  /* CANVAS VISUALIZER */
-  #canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: none;
-    z-index: 1;
-  }
-
-  /* TRACK OVERLAY */
-  #overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    padding: 40px 40px 32px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.9));
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
-  }
-  #track-info {
-    flex: 1;
-    min-width: 0;
-  }
-  #track-name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.8rem;
-    letter-spacing: 0.06em;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  #artist-name {
-    font-size: 0.75rem;
-    letter-spacing: 0.2em;
-    color: #888;
-    margin-top: 6px;
-    text-transform: uppercase;
-  }
-
-  #right-hud {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  #mode-badge {
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: #1DB954;
-    border: 1px solid rgba(29,185,84,0.3);
-    border-radius: 20px;
-    padding: 5px 14px;
-  }
-  #bpm-display {
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
-    color: #555;
-  }
-
-  /* TOP CONTROLS */
-  #controls {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    z-index: 10;
-    display: flex;
-    gap: 8px;
-  }
-  .ctrl {
-    background: rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #888;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 7px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
-    backdrop-filter: blur(8px);
-  }
-  .ctrl:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+  #controls { position: absolute; top: 18px; right: 18px; z-index: 10; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .ctrl { background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08); color: #555; font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase; padding: 7px 14px; border-radius: 20px; cursor: pointer; transition: color 0.2s, border-color 0.2s; backdrop-filter: blur(10px); }
+  .ctrl:hover { color: #bbb; border-color: rgba(255,255,255,0.2); }
   .ctrl.active { color: #1DB954; border-color: rgba(29,185,84,0.4); }
+  .ctrl.lights-on { color: #ffcc00; border-color: rgba(255,204,0,0.4); }
 
-  /* STATUS */
-  #status {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 5;
-    text-align: center;
-    pointer-events: none;
-  }
-  #status p { font-size: 0.75rem; letter-spacing: 0.2em; color: #333; text-transform: uppercase; }
+  #status { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 5; text-align: center; pointer-events: none; }
+  #status p { font-size: 0.68rem; letter-spacing: 0.25em; color: #222; text-transform: uppercase; }
 
-  /* SPOTIFY LOGO */
-  #sp-logo {
-    position: absolute;
-    top: 22px;
-    left: 24px;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    opacity: 0.5;
-  }
-  #sp-logo svg { width: 18px; height: 18px; fill: #1DB954; }
-  #sp-logo span { font-size: 0.65rem; letter-spacing: 0.2em; color: #555; text-transform: uppercase; }
+  #sp-logo { position: absolute; top: 20px; left: 22px; z-index: 10; display: flex; align-items: center; gap: 8px; opacity: 0.35; }
+  #sp-logo svg { width: 15px; height: 15px; fill: #1DB954; }
+  #sp-logo span { font-size: 0.58rem; letter-spacing: 0.2em; color: #333; text-transform: uppercase; }
+
+  #ha-modal { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.88); backdrop-filter: blur(12px); align-items: center; justify-content: center; }
+  #ha-modal.open { display: flex; }
+  #ha-box { background: #080808; border: 1px solid #1c1c1c; border-radius: 18px; padding: 32px; width: 500px; max-width: 92vw; max-height: 80vh; overflow-y: auto; }
+  #ha-box h2 { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 0.1em; margin-bottom: 4px; }
+  #ha-box .hint { font-size: 0.62rem; color: #444; letter-spacing: 0.12em; margin-bottom: 22px; text-transform: uppercase; }
+  #ha-status { font-size: 0.62rem; color: #555; letter-spacing: 0.1em; margin-bottom: 14px; min-height: 1rem; }
+  #lights-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+  .light-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid #181818; border-radius: 10px; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  .light-item:hover { border-color: #2a2a2a; }
+  .light-item.selected { border-color: rgba(29,185,84,0.4); background: rgba(29,185,84,0.04); }
+  .light-dot { width: 9px; height: 9px; border-radius: 50%; background: #ffcc00; flex-shrink: 0; box-shadow: 0 0 6px rgba(255,204,0,0.5); }
+  .light-name { font-size: 0.7rem; letter-spacing: 0.08em; color: #aaa; flex: 1; }
+  .light-check { font-size: 0.7rem; color: #1DB954; opacity: 0; transition: opacity 0.2s; }
+  .light-item.selected .light-check { opacity: 1; }
+  #ha-btn-row { display: flex; gap: 10px; }
+  .ha-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; }
+  .ha-btn.primary { background: #1DB954; color: #000; }
+  .ha-btn.secondary { background: #181818; color: #555; }
+  .ha-btn:hover { opacity: 0.85; }
+  .select-all-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+  .select-all-btn { font-size: 0.6rem; letter-spacing: 0.15em; color: #444; text-transform: uppercase; cursor: pointer; border: none; background: none; font-family: 'DM Mono', monospace; }
+  .select-all-btn:hover { color: #888; }
 </style>
 </head>
 <body>
@@ -217,102 +77,207 @@
 
 <div id="player">
   <div id="sp-logo">
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
     <span>Live</span>
   </div>
 
   <div id="yt-embed"></div>
   <canvas id="canvas"></canvas>
-
   <div id="status"><p>Waiting for Spotify...</p></div>
 
   <div id="overlay">
-    <div id="track-info">
-      <div id="track-name">—</div>
-      <div id="artist-name">—</div>
-    </div>
-    <div id="right-hud">
-      <div id="mode-badge">—</div>
-      <div id="bpm-display">— BPM</div>
+    <div id="lyrics-line"></div>
+    <div id="track-row">
+      <div id="track-info">
+        <div id="track-name">—</div>
+        <div id="artist-name">—</div>
+      </div>
+      <div id="right-hud">
+        <div id="mode-badge">—</div>
+        <div id="bpm-display">— BPM</div>
+      </div>
     </div>
   </div>
 
   <div id="controls">
+    <div class="ctrl" id="lights-btn" onclick="openLightsModal()">Lights</div>
+    <div class="ctrl" id="lyrics-btn" onclick="toggleLyrics()">Lyrics</div>
     <div class="ctrl" id="vis-btn" onclick="toggleForceVis()">Visualizer</div>
     <div class="ctrl" onclick="toggleFullscreen()">Fullscreen</div>
     <div class="ctrl" onclick="logout()">Disconnect</div>
   </div>
 </div>
 
-<script>
-const CLIENT_ID = '23267977d16d48e1a9495de2b38e63c1';
-const REDIRECT_URI = 'https://natev42.github.io/spotify-viz';
-const SCOPES = 'user-read-currently-playing user-read-playback-state';
+<!-- Home Assistant Modal -->
+<div id="ha-modal">
+  <div id="ha-box">
+    <h2>Smart Lights</h2>
+    <div class="hint">Select lights to sync with the beat</div>
+    <div id="ha-status">Connecting...</div>
+    <div class="select-all-row"><button class="select-all-btn" onclick="selectAll()">Select all</button></div>
+    <div id="lights-list"></div>
+    <div id="ha-btn-row">
+      <button class="ha-btn secondary" onclick="closeLightsModal()">Cancel</button>
+      <button class="ha-btn primary" onclick="saveLights()">Sync Selected</button>
+    </div>
+  </div>
+</div>
 
-let accessToken = null;
+<script>
+const CLIENT_ID    = '23267977d16d48e1a9495de2b38e63c1';
+const REDIRECT_URI = 'https://natev42.github.io/spotify-viz';
+const SCOPES       = 'user-read-currently-playing user-read-playback-state';
+const YT_KEY       = 'AIzaSyCDR7-_K3eMUaijeS7zo0nD1gv0vnDIs4Y';
+const HA_URL       = 'http://homeassistant.local:8123';
+const HA_TOKEN     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI3MWU4MzZjZmMxMjY0NjMzOTc3NDEzYjVjNDc1NWUxZCIsImlhdCI6MTc3Nzg0NDUxNywiZXhwIjoyMDkzMjA0NTE3fQ.isDztHb5r-xuHTFMBfm5fep9mhdssU73NhmDWIhu5RE';
+
+let accessToken    = null;
 let currentTrackId = null;
-let audioFeatures = null;
-let animFrame = null;
-let pollTimer = null;
-let forceVis = false;
-let analyser = null;
+let audioFeatures  = null;
+let animFrame      = null;
+let pollTimer      = null;
+let forceVis       = false;
+let lyricsOn       = false;
+let lightsActive   = false;
+let analyser       = null;
+let allLights      = [];
+let selectedLights = [];
+let lyricsLines    = [];
+let currentLyricIdx= 0;
+let lastLightBeat  = 0;
+let lightColorIdx  = 0;
 
 // PKCE
 async function genVerifier() {
-  const arr = new Uint8Array(32);
-  crypto.getRandomValues(arr);
-  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  const a = new Uint8Array(32); crypto.getRandomValues(a);
+  return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
 }
 async function genChallenge(v) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
   return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
 }
-
 async function login() {
-  const v = await genVerifier();
-  const c = await genChallenge(v);
+  const v = await genVerifier(), c = await genChallenge(v);
   sessionStorage.setItem('pkce', v);
-  const p = new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI, scope: SCOPES, code_challenge_method: 'S256', code_challenge: c });
-  window.location = 'https://accounts.spotify.com/authorize?' + p;
+  window.location = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI, scope: SCOPES, code_challenge_method: 'S256', code_challenge: c });
 }
-
 async function exchangeCode(code) {
-  const r = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: CLIENT_ID, code_verifier: sessionStorage.getItem('pkce') })
-  });
+  const r = await fetch('https://accounts.spotify.com/api/token', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ grant_type:'authorization_code', code, redirect_uri:REDIRECT_URI, client_id:CLIENT_ID, code_verifier:sessionStorage.getItem('pkce') })});
   return (await r.json()).access_token;
 }
 
+// Spotify
 async function spotifyGet(path) {
-  const r = await fetch('https://api.spotify.com/v1' + path, { headers: { Authorization: 'Bearer ' + accessToken } });
-  if (r.status === 204 || r.status === 401) return null;
+  const r = await fetch('https://api.spotify.com/v1' + path, { headers:{ Authorization:'Bearer '+accessToken }});
+  if (r.status===204||r.status===401) return null;
   return r.json();
 }
 
-// YouTube embed via search
-function embedYT(artist, track) {
+// YouTube
+async function searchYT(artist, track) {
   const q = encodeURIComponent(artist + ' ' + track + ' official music video');
-  document.getElementById('yt-embed').innerHTML =
-    `<iframe src="https://www.youtube.com/embed?listType=search&list=${q}&autoplay=1&rel=0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  try {
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${YT_KEY}`);
+    const d = await r.json();
+    if (d.items && d.items.length > 0) return d.items[0].id.videoId;
+  } catch(e) {}
+  return null;
+}
+function embedYT(videoId) {
+  document.getElementById('yt-embed').innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
   document.getElementById('yt-embed').style.display = 'block';
   document.getElementById('canvas').style.display = 'none';
   document.getElementById('mode-badge').textContent = 'Music Video';
   document.getElementById('status').style.display = 'none';
+  document.getElementById('lyrics-line').style.display = 'none';
   if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
 }
 
-function showVisualizer(features) {
-  document.getElementById('yt-embed').innerHTML = '';
-  document.getElementById('yt-embed').style.display = 'none';
-  document.getElementById('canvas').style.display = 'block';
-  document.getElementById('mode-badge').textContent = 'Visualizer';
-  document.getElementById('status').style.display = 'none';
-  startVis(features);
+// Lyrics
+async function fetchLyrics(artist, track) {
+  lyricsLines = []; currentLyricIdx = 0;
+  try {
+    const r = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(track)}`);
+    const d = await r.json();
+    if (d.lyrics) lyricsLines = d.lyrics.split('\n').map(l=>l.trim()).filter(l=>l.length>1);
+  } catch(e) {}
+}
+function advanceLyric() {
+  if (!lyricsOn || lyricsLines.length===0) return;
+  const el = document.getElementById('lyrics-line');
+  el.style.opacity = '0';
+  setTimeout(()=>{ el.textContent = lyricsLines[currentLyricIdx % lyricsLines.length]; el.style.opacity='1'; currentLyricIdx++; }, 300);
 }
 
-// Try mic
+// Home Assistant
+async function haGet(path) {
+  try {
+    const r = await fetch(HA_URL+'/api'+path, { headers:{ Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json' }});
+    return r.json();
+  } catch(e) { return null; }
+}
+async function haPost(path, body) {
+  try {
+    await fetch(HA_URL+'/api'+path, { method:'POST', headers:{ Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json' }, body:JSON.stringify(body) });
+  } catch(e) {}
+}
+async function loadAllLights() {
+  document.getElementById('ha-status').textContent = 'Connecting to Home Assistant...';
+  const states = await haGet('/states');
+  if (!states) { document.getElementById('ha-status').textContent = 'Could not reach Home Assistant — make sure you are on your home network.'; return; }
+  allLights = states.filter(s => s.entity_id.startsWith('light.'));
+  document.getElementById('ha-status').textContent = `Found ${allLights.length} light${allLights.length!==1?'s':''}`;
+  renderLightsList();
+}
+function renderLightsList() {
+  const list = document.getElementById('lights-list');
+  list.innerHTML = '';
+  allLights.forEach(light => {
+    const isSel = selectedLights.includes(light.entity_id);
+    const div = document.createElement('div');
+    div.className = 'light-item' + (isSel?' selected':'');
+    div.innerHTML = `<div class="light-dot"></div><div class="light-name">${light.attributes.friendly_name||light.entity_id}</div><div class="light-check">✓</div>`;
+    div.onclick = () => {
+      if (selectedLights.includes(light.entity_id)) selectedLights = selectedLights.filter(id=>id!==light.entity_id);
+      else selectedLights.push(light.entity_id);
+      div.classList.toggle('selected', selectedLights.includes(light.entity_id));
+      div.querySelector('.light-check').style.opacity = selectedLights.includes(light.entity_id)?'1':'0';
+    };
+    list.appendChild(div);
+  });
+}
+function selectAll() {
+  selectedLights = allLights.map(l=>l.entity_id);
+  renderLightsList();
+}
+function openLightsModal() { document.getElementById('ha-modal').classList.add('open'); loadAllLights(); }
+function closeLightsModal() { document.getElementById('ha-modal').classList.remove('open'); }
+function saveLights() {
+  lightsActive = selectedLights.length > 0;
+  document.getElementById('lights-btn').classList.toggle('lights-on', lightsActive);
+  closeLightsModal();
+}
+
+// Light colors cycling through hues
+const LIGHT_HUES = [0, 30, 60, 120, 180, 240, 270, 300];
+async function syncLightsOnBeat(pulse, hBase, energy) {
+  if (!lightsActive || selectedLights.length===0) return;
+  const now = Date.now();
+  if (pulse < 0.65 || now - lastLightBeat < 250) return;
+  lastLightBeat = now;
+  const hue = LIGHT_HUES[lightColorIdx % LIGHT_HUES.length];
+  lightColorIdx++;
+  const brightness = Math.round(120 + energy * 135);
+  selectedLights.forEach(entityId => {
+    haPost('/services/light/turn_on', { entity_id: entityId, hs_color: [hue, 100], brightness, transition: 0 });
+  });
+  setTimeout(() => {
+    if (!lightsActive) return;
+    selectedLights.forEach(entityId => haPost('/services/light/turn_on', { entity_id: entityId, brightness: Math.round(20 + energy*50), transition: 0 }));
+  }, 130);
+}
+
+// Mic input
 async function tryMic() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -325,224 +290,292 @@ async function tryMic() {
 }
 
 // Visualizer
+function showVisualizer(features) {
+  document.getElementById('yt-embed').innerHTML = '';
+  document.getElementById('yt-embed').style.display = 'none';
+  document.getElementById('canvas').style.display = 'block';
+  document.getElementById('mode-badge').textContent = 'Visualizer';
+  document.getElementById('status').style.display = 'none';
+  if (lyricsOn) document.getElementById('lyrics-line').style.display = 'block';
+  startVis(features);
+}
+
 function startVis(features) {
   if (animFrame) cancelAnimationFrame(animFrame);
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
-  const tempo = (features && features.tempo) || 120;
-  const energy = (features && features.energy) || 0.5;
-  const valence = (features && features.valence) || 0.5;
+  const tempo        = (features && features.tempo)        || 120;
+  const energy       = (features && features.energy)       || 0.5;
+  const valence      = (features && features.valence)      || 0.5;
   const danceability = (features && features.danceability) || 0.5;
-  const beatMs = 60000 / tempo;
+  const beatMs       = 60000 / tempo;
 
-  // Color palette from valence
-  const hBase = Math.round(valence * 280);
-  const hAccent = (hBase + 150) % 360;
-  const hTriad = (hBase + 240) % 360;
+  const hBase   = Math.round(valence * 300);
+  const hAccent = (hBase + 140) % 360;
+  const hTriad  = (hBase + 240) % 360;
 
   function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
   resize();
   window.onresize = resize;
 
-  let lastBeat = performance.now();
-  let beatPhase = 0;
-  let time = 0;
-
-  // Particle system
-  const NUM_P = Math.round(60 + energy * 80);
-  const particles = Array.from({ length: NUM_P }, () => spawnParticle(canvas));
-
-  function spawnParticle(canvas) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = Math.random() * Math.min(canvas.width, canvas.height) * 0.3;
-    return {
-      x: canvas.width / 2 + Math.cos(angle) * dist,
-      y: canvas.height / 2 + Math.sin(angle) * dist,
-      vx: (Math.random() - 0.5) * (1 + energy * 2),
-      vy: (Math.random() - 0.5) * (1 + energy * 2),
-      r: Math.random() * 2.5 + 0.5,
-      life: Math.random(),
-      maxLife: 0.6 + Math.random() * 0.4,
-      hue: hBase + Math.random() * 60 - 30,
-    };
+  // Particles with trails
+  const NUM_P = Math.round(90 + energy * 130);
+  const particles = Array.from({length:NUM_P}, ()=>spawnP());
+  function spawnP() {
+    const angle = Math.random()*Math.PI*2;
+    const d = Math.random()*Math.min(canvas.width,canvas.height)*0.3;
+    return { x:canvas.width/2+Math.cos(angle)*d, y:canvas.height/2+Math.sin(angle)*d, vx:(Math.random()-.5)*(1+energy*2.5), vy:(Math.random()-.5)*(1+energy*2.5), r:Math.random()*3+0.5, life:Math.random(), hue:hBase+Math.random()*90-45, trail:[] };
   }
 
-  // Waveform ring points
-  const RING_PTS = 180;
+  // Lasers
+  const NUM_LASERS = Math.round(5 + energy * 9);
+  const lasers = Array.from({length:NUM_LASERS},(_,i)=>({ angle:(i/NUM_LASERS)*Math.PI*2, speed:(Math.random()-.5)*0.007*(1+energy), hue:(hBase+i*(360/NUM_LASERS))%360, width:Math.random()*1.5+0.5 }));
+
+  // Smoke
+  const smoke = Array.from({length:35},()=>spawnSmoke());
+  function spawnSmoke() {
+    return { x:Math.random()*canvas.width, y:canvas.height+20, vx:(Math.random()-.5)*0.5, vy:-(Math.random()*0.9+0.2), size:Math.random()*140+70, alpha:Math.random()*0.035+0.008, life:1 };
+  }
+
+  let lastBeat = performance.now();
+  let beatPhase = 0;
+  let subBeat = 0;
+  let time = 0;
+  let visualMode = 0;
+  let modeFrames = 0;
+  const modeChangeFPS = Math.round((beatMs / 16.67) * 16);
+  const RING_PTS = 200;
+  const BARS = 96;
 
   function draw(now) {
     animFrame = requestAnimationFrame(draw);
     time = now * 0.001;
 
     const elapsed = now - lastBeat;
-    if (elapsed >= beatMs) { lastBeat = now; beatPhase = 1.0; }
-    beatPhase *= (0.82 + danceability * 0.1);
+    if (elapsed >= beatMs) {
+      lastBeat = now; beatPhase = 1.0;
+      subBeat = (subBeat+1)%4;
+      if (subBeat%2===0) advanceLyric();
+      syncLightsOnBeat(beatPhase, hBase, energy);
+    }
+    beatPhase *= (0.78 + danceability * 0.12);
+
+    modeFrames++;
+    if (modeFrames >= modeChangeFPS) { modeFrames=0; visualMode=(visualMode+1)%4; }
 
     let micLevel = 0;
     if (analyser) {
       const buf = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(buf);
-      micLevel = buf.reduce((a, b) => a + b, 0) / buf.length / 255;
+      micLevel = buf.reduce((a,b)=>a+b,0)/buf.length/255;
+    }
+    const pulse = Math.max(beatPhase, micLevel*1.8);
+    const cx = canvas.width/2, cy = canvas.height/2;
+    const baseR = Math.min(canvas.width,canvas.height)*0.22;
+
+    // Background fade
+    ctx.fillStyle = `rgba(0,0,0,${0.09+(1-energy)*0.06+(visualMode===2?0.15:0)})`;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // Smoke (modes 0 and 3)
+    if (visualMode===0||visualMode===3) {
+      smoke.forEach((s,i)=>{
+        s.x+=s.vx; s.y+=s.vy; s.life-=0.0015;
+        if (s.life<=0||s.y<-s.size) { smoke[i]=spawnSmoke(); return; }
+        const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size*(1+pulse*0.25));
+        g.addColorStop(0,`hsla(${hBase+20},25%,55%,${s.alpha*(0.5+pulse*0.5)})`);
+        g.addColorStop(1,'transparent');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(s.x,s.y,s.size,0,Math.PI*2); ctx.fill();
+      });
     }
 
-    const pulse = Math.max(beatPhase, micLevel * 1.8);
-    const cx = canvas.width / 2, cy = canvas.height / 2;
-    const baseR = Math.min(canvas.width, canvas.height) * 0.2;
+    // Glow rings
+    for (let i=5; i>=1; i--) {
+      const r = baseR*i*(1+pulse*0.38*((6-i)/5));
+      const a = 0.025+pulse*0.09*(i/5);
+      const g = ctx.createRadialGradient(cx,cy,r*0.1,cx,cy,r);
+      g.addColorStop(0,`hsla(${hBase+i*20},80%,58%,${a*1.8})`);
+      g.addColorStop(0.5,`hsla(${hAccent},65%,45%,${a})`);
+      g.addColorStop(1,'transparent');
+      ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+    }
 
-    // Fade trail
-    ctx.fillStyle = `rgba(0,0,0,${0.12 + (1 - energy) * 0.08})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Lasers (modes 1, 2, 3)
+    if (visualMode!==0) {
+      lasers.forEach(laser=>{
+        laser.angle += laser.speed*(1+pulse*3.5);
+        const len = Math.max(canvas.width,canvas.height)*1.6;
+        const x2=cx+Math.cos(laser.angle)*len, y2=cy+Math.sin(laser.angle)*len;
+        const lg=ctx.createLinearGradient(cx,cy,x2,y2);
+        const a=0.06+pulse*0.38;
+        lg.addColorStop(0,`hsla(${laser.hue},100%,72%,${a})`);
+        lg.addColorStop(0.35,`hsla(${laser.hue},90%,60%,${a*0.4})`);
+        lg.addColorStop(1,'transparent');
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x2,y2);
+        ctx.strokeStyle=lg; ctx.lineWidth=laser.width*(1+pulse*5); ctx.stroke();
+        // Mirror beam
+        const x3=cx-Math.cos(laser.angle)*len, y3=cy-Math.sin(laser.angle)*len;
+        const lg2=ctx.createLinearGradient(cx,cy,x3,y3);
+        lg2.addColorStop(0,`hsla(${(laser.hue+180)%360},100%,72%,${a})`);
+        lg2.addColorStop(1,'transparent');
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x3,y3);
+        ctx.strokeStyle=lg2; ctx.lineWidth=laser.width*(1+pulse*5); ctx.stroke();
+      });
+    }
 
-    // Background glow rings
-    for (let i = 4; i >= 1; i--) {
-      const r = baseR * i * (1 + pulse * 0.35 * ((5 - i) / 4));
-      const alpha = 0.04 + pulse * 0.08 * (i / 4);
-      const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
-      g.addColorStop(0, `hsla(${hBase + i * 20},75%,55%,${alpha * 1.5})`);
-      g.addColorStop(0.5, `hsla(${hAccent},65%,45%,${alpha})`);
-      g.addColorStop(1, `hsla(${hTriad},60%,35%,0)`);
+    // Waveform rings (2 layers)
+    for (let ring=0; ring<2; ring++) {
       ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
+      for (let i=0; i<=RING_PTS; i++) {
+        const angle=(i/RING_PTS)*Math.PI*2-Math.PI/2+(ring*0.05);
+        const w=Math.sin(i*0.15+time*(2.5+ring*1.2))*0.5+Math.sin(i*0.07+time*(1.3+ring*0.8))*0.5+Math.sin(i*0.3+time*4+pulse*2)*0.3*pulse;
+        const distort=baseR*((ring===0?0.85:0.76)+w*0.1*energy+pulse*(0.22-ring*0.06));
+        const x=cx+Math.cos(angle)*distort, y=cy+Math.sin(angle)*distort;
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle=`hsla(${ring===0?hBase:hAccent},88%,68%,${(0.28-ring*0.1)+pulse*(0.5-ring*0.15)})`;
+      ctx.lineWidth=(1.5-ring*0.5)+pulse*(3-ring*0.8); ctx.stroke();
     }
-
-    // Waveform ring
-    ctx.beginPath();
-    for (let i = 0; i <= RING_PTS; i++) {
-      const angle = (i / RING_PTS) * Math.PI * 2 - Math.PI / 2;
-      const wave = Math.sin(i * 0.18 + time * 2.5) * 0.5 + Math.sin(i * 0.07 + time * 1.3) * 0.5;
-      const distort = baseR * (0.88 + wave * 0.08 * energy + pulse * 0.18);
-      const x = cx + Math.cos(angle) * distort;
-      const y = cy + Math.sin(angle) * distort;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = `hsla(${hBase},85%,65%,${0.35 + pulse * 0.45})`;
-    ctx.lineWidth = 1.5 + pulse * 2.5;
-    ctx.stroke();
 
     // Bar ring
-    const BARS = 80;
-    for (let i = 0; i < BARS; i++) {
-      const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2;
-      const barAmp = pulse * (0.6 + 0.4 * Math.abs(Math.sin(i * 0.19 + time * 1.8)));
-      const innerR = baseR * 1.0;
-      const outerR = innerR + baseR * (0.08 + barAmp * energy * 1.1);
-      const x1 = cx + Math.cos(angle) * innerR, y1 = cy + Math.sin(angle) * innerR;
-      const x2 = cx + Math.cos(angle) * outerR, y2 = cy + Math.sin(angle) * outerR;
-      const h = (hBase + (i / BARS) * 120) % 360;
+    for (let i=0; i<BARS; i++) {
+      const angle=(i/BARS)*Math.PI*2-Math.PI/2;
+      const bp=pulse*(0.5+0.5*Math.abs(Math.sin(i*0.2+time*2.1+subBeat*0.8)));
+      const innerR=baseR*1.02;
+      const outerR=innerR+baseR*(0.055+bp*energy*1.5);
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = `hsla(${h},90%,68%,${0.45 + barAmp * 0.55})`;
-      ctx.lineWidth = 1.8 + pulse * 2;
-      ctx.stroke();
+      ctx.moveTo(cx+Math.cos(angle)*innerR,cy+Math.sin(angle)*innerR);
+      ctx.lineTo(cx+Math.cos(angle)*outerR,cy+Math.sin(angle)*outerR);
+      ctx.strokeStyle=`hsla(${(hBase+i*(260/BARS))%360},95%,70%,${0.38+bp*0.62})`;
+      ctx.lineWidth=2+pulse*2.5; ctx.stroke();
+    }
+
+    // Tunnel mode (mode 2)
+    if (visualMode===2) {
+      for (let t=0; t<9; t++) {
+        const tr=baseR*(0.12+t*0.09+pulse*0.05)*(1+Math.sin(time*0.4+t)*0.04);
+        const sides=6;
+        ctx.beginPath();
+        for (let s=0; s<=sides; s++) {
+          const a=(s/sides)*Math.PI*2-Math.PI/6+time*0.28*(t%2===0?1:-1);
+          ctx.s===0?ctx.moveTo(cx+Math.cos(a)*tr,cy+Math.sin(a)*tr):ctx.lineTo(cx+Math.cos(a)*tr,cy+Math.sin(a)*tr);
+          if (s===0) ctx.moveTo(cx+Math.cos(a)*tr,cy+Math.sin(a)*tr);
+          else ctx.lineTo(cx+Math.cos(a)*tr,cy+Math.sin(a)*tr);
+        }
+        ctx.strokeStyle=`hsla(${(hTriad+t*22)%360},80%,65%,${0.08+pulse*0.28})`;
+        ctx.lineWidth=0.8+pulse; ctx.stroke();
+      }
     }
 
     // Core orb
-    const orbR = baseR * (0.22 + pulse * 0.15);
-    const og = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbR);
-    og.addColorStop(0, `hsla(${hBase},100%,88%,${0.6 + pulse * 0.4})`);
-    og.addColorStop(0.5, `hsla(${hAccent},80%,60%,${0.3 + pulse * 0.3})`);
-    og.addColorStop(1, `hsla(${hTriad},70%,40%,0)`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, orbR, 0, Math.PI * 2);
-    ctx.fillStyle = og;
-    ctx.fill();
+    const orbR=baseR*(0.17+pulse*0.2);
+    const og=ctx.createRadialGradient(cx,cy,0,cx,cy,orbR);
+    og.addColorStop(0,`hsla(${hBase},100%,94%,${0.5+pulse*0.5})`);
+    og.addColorStop(0.35,`hsla(${hAccent},88%,68%,${0.28+pulse*0.38})`);
+    og.addColorStop(1,`hsla(${hTriad},70%,40%,0)`);
+    ctx.beginPath(); ctx.arc(cx,cy,orbR,0,Math.PI*2); ctx.fillStyle=og; ctx.fill();
 
-    // Particles
-    particles.forEach((p, idx) => {
-      p.x += p.vx * (1 + pulse * 2);
-      p.y += p.vy * (1 + pulse * 2);
-      p.life -= 0.004 + pulse * 0.008;
-
-      if (p.life <= 0 || p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
-        particles[idx] = spawnParticle(canvas);
-        return;
+    // Particles with trails
+    particles.forEach((p,idx)=>{
+      p.trail.push({x:p.x,y:p.y});
+      if (p.trail.length>10) p.trail.shift();
+      p.x+=p.vx*(1+pulse*2.8); p.y+=p.vy*(1+pulse*2.8); p.life-=0.003+pulse*0.006;
+      if (p.life<=0||p.x<0||p.x>canvas.width||p.y<0||p.y>canvas.height) { particles[idx]=spawnP(); return; }
+      if (p.trail.length>2) {
+        ctx.beginPath(); ctx.moveTo(p.trail[0].x,p.trail[0].y);
+        p.trail.forEach(pt=>ctx.lineTo(pt.x,pt.y));
+        ctx.strokeStyle=`hsla(${p.hue},80%,65%,${p.life*0.28})`; ctx.lineWidth=p.r*0.6; ctx.stroke();
       }
-
-      const alpha = p.life * (0.5 + pulse * 0.4);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r * (0.5 + pulse * 0.8), 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${p.hue},85%,70%,${alpha})`;
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(0.4+pulse*0.9),0,Math.PI*2);
+      ctx.fillStyle=`hsla(${p.hue},88%,72%,${p.life*(0.5+pulse*0.4)})`; ctx.fill();
     });
 
-    // Beat flash
-    if (pulse > 0.5) {
-      const flashA = (pulse - 0.5) * 0.12;
-      const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(canvas.width, canvas.height) * 0.6);
-      fg.addColorStop(0, `hsla(${hBase},100%,85%,${flashA})`);
-      fg.addColorStop(1, 'transparent');
-      ctx.fillStyle = fg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Strobe on mode 3 big beats
+    if (visualMode===3 && beatPhase>0.82) {
+      ctx.fillStyle=`rgba(255,255,255,${(beatPhase-0.82)*0.45})`;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
     }
+
+    // Beat flash
+    if (pulse>0.42) {
+      const fa=(pulse-0.42)*0.2;
+      const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.min(canvas.width,canvas.height)*0.72);
+      fg.addColorStop(0,`hsla(${hBase},100%,82%,${fa})`); fg.addColorStop(1,'transparent');
+      ctx.fillStyle=fg; ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+
+    // Vignette
+    const vg=ctx.createRadialGradient(cx,cy,canvas.height*0.28,cx,cy,canvas.height*0.88);
+    vg.addColorStop(0,'transparent'); vg.addColorStop(1,'rgba(0,0,0,0.55)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,canvas.width,canvas.height);
   }
 
   draw(performance.now());
 }
 
 // Controls
+function toggleLyrics() {
+  lyricsOn = !lyricsOn;
+  document.getElementById('lyrics-btn').classList.toggle('active', lyricsOn);
+  const el = document.getElementById('lyrics-line');
+  if (lyricsOn && document.getElementById('canvas').style.display!=='none') el.style.display='block';
+  else el.style.display='none';
+}
 function toggleForceVis() {
   forceVis = !forceVis;
   document.getElementById('vis-btn').classList.toggle('active', forceVis);
   if (forceVis && audioFeatures) showVisualizer(audioFeatures);
-  else if (!forceVis && currentTrackId) {
-    const name = document.getElementById('track-name').textContent;
-    const artist = document.getElementById('artist-name').textContent;
-    if (name && name !== '—') embedYT(artist, name);
+  else if (!forceVis) {
+    const name=document.getElementById('track-name').textContent;
+    const artist=document.getElementById('artist-name').textContent;
+    if (name&&name!=='—') tryLoadVideo(artist, name);
   }
 }
-
 function toggleFullscreen() {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
   else document.exitFullscreen();
 }
-
 function logout() {
-  accessToken = null; currentTrackId = null;
-  clearInterval(pollTimer);
-  if (animFrame) cancelAnimationFrame(animFrame);
-  document.getElementById('player').style.display = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
+  accessToken=null; currentTrackId=null;
+  clearInterval(pollTimer); if (animFrame) cancelAnimationFrame(animFrame);
+  document.getElementById('player').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
 }
 
-// Poll Spotify
+// Load video or fall back
+async function tryLoadVideo(artist, track) {
+  document.getElementById('mode-badge').textContent = 'Searching...';
+  const videoId = await searchYT(artist, track);
+  if (videoId && !forceVis) embedYT(videoId);
+  else showVisualizer(audioFeatures);
+}
+
+// Poll
 async function poll() {
   try {
     const data = await spotifyGet('/me/player/currently-playing');
-    if (!data || !data.item) {
-      document.getElementById('track-name').textContent = 'Nothing playing';
-      document.getElementById('artist-name').textContent = '';
-      document.getElementById('bpm-display').textContent = '— BPM';
-      document.getElementById('status').style.display = 'block';
+    if (!data||!data.item) {
+      document.getElementById('track-name').textContent='Nothing playing';
+      document.getElementById('artist-name').textContent='';
+      document.getElementById('bpm-display').textContent='— BPM';
+      document.getElementById('status').style.display='block';
       return;
     }
     const track = data.item;
-    const artist = track.artists.map(a => a.name).join(', ');
-    document.getElementById('track-name').textContent = track.name;
-    document.getElementById('artist-name').textContent = artist;
-
-    if (track.id !== currentTrackId) {
-      currentTrackId = track.id;
-      audioFeatures = await spotifyGet('/audio-features/' + track.id);
-      if (audioFeatures && audioFeatures.tempo) {
-        document.getElementById('bpm-display').textContent = Math.round(audioFeatures.tempo) + ' BPM';
-      }
-      if (forceVis) {
-        showVisualizer(audioFeatures);
-      } else {
-        embedYT(artist, track.name);
-        // Check after 5s if YouTube loaded; fallback to visualizer
-        setTimeout(() => {
-          const iframe = document.querySelector('#yt-embed iframe');
-          if (!iframe) showVisualizer(audioFeatures);
-        }, 5000);
-      }
+    const artist = track.artists.map(a=>a.name).join(', ');
+    document.getElementById('track-name').textContent=track.name;
+    document.getElementById('artist-name').textContent=artist;
+    document.getElementById('status').style.display='none';
+    if (track.id!==currentTrackId) {
+      currentTrackId=track.id;
+      audioFeatures = await spotifyGet('/audio-features/'+track.id);
+      if (audioFeatures&&audioFeatures.tempo) document.getElementById('bpm-display').textContent=Math.round(audioFeatures.tempo)+' BPM';
+      await fetchLyrics(track.artists[0].name, track.name);
+      await tryLoadVideo(artist, track.name);
     }
-  } catch(e) { console.warn('Poll error:', e); }
+  } catch(e) { console.warn(e); }
 }
 
 // Init
@@ -550,20 +583,17 @@ async function init() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   if (code) {
-    history.replaceState({}, '', window.location.pathname);
+    history.replaceState({},'',' ');
     try {
       accessToken = await exchangeCode(code);
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('player').style.display = 'block';
+      document.getElementById('login-screen').style.display='none';
+      document.getElementById('player').style.display='block';
       await tryMic();
       await poll();
-      pollTimer = setInterval(poll, 3000);
-    } catch(e) {
-      alert('Auth failed. Make sure your Redirect URI in Spotify matches exactly: ' + REDIRECT_URI);
-    }
+      pollTimer = setInterval(poll, 4000);
+    } catch(e) { alert('Auth failed. Redirect URI must match exactly: '+REDIRECT_URI); }
   }
 }
-
 init();
 </script>
 </body>
