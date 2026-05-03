@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spotify Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* LOGIN */
+  #login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    animation: fadeIn 1s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  #login-screen .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 5rem;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    background: linear-gradient(135deg, #1DB954 0%, #00d4ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+  }
+  #login-screen .sub {
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: #555;
+    text-transform: uppercase;
+    margin-bottom: 3rem;
+  }
+  .connect-btn {
+    background: #1DB954;
+    color: #000;
+    border: none;
+    padding: 16px 48px;
+    border-radius: 40px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 40px rgba(29,185,84,0.3);
+  }
+  .connect-btn:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 60px rgba(29,185,84,0.5);
+  }
+
+  /* PLAYER */
+  #player {
+    display: none;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  /* YOUTUBE */
+  #yt-embed {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+  #yt-embed iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+
+  /* CANVAS VISUALIZER */
+  #canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    z-index: 1;
+  }
+
+  /* TRACK OVERLAY */
+  #overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    padding: 40px 40px 32px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.9));
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  #track-info {
+    flex: 1;
+    min-width: 0;
+  }
+  #track-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #artist-name {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: #888;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  #right-hud {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  #mode-badge {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #1DB954;
+    border: 1px solid rgba(29,185,84,0.3);
+    border-radius: 20px;
+    padding: 5px 14px;
+  }
+  #bpm-display {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: #555;
+  }
+
+  /* TOP CONTROLS */
+  #controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+  }
+  .ctrl {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #888;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    backdrop-filter: blur(8px);
+  }
+  .ctrl:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+  .ctrl.active { color: #1DB954; border-color: rgba(29,185,84,0.4); }
+
+  /* STATUS */
+  #status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    text-align: center;
+    pointer-events: none;
+  }
+  #status p { font-size: 0.75rem; letter-spacing: 0.2em; color: #333; text-transform: uppercase; }
+
+  /* SPOTIFY LOGO */
+  #sp-logo {
+    position: absolute;
+    top: 22px;
+    left: 24px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.5;
+  }
+  #sp-logo svg { width: 18px; height: 18px; fill: #1DB954; }
+  #sp-logo span { font-size: 0.65rem; letter-spacing: 0.2em; color: #555; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="logo">VIZIFY</div>
+  <div class="sub">Spotify · YouTube · Visualizer</div>
+  <button class="connect-btn" onclick="login()">Connect Spotify</button>
+</div>
+
+<div id="player">
+  <div id="sp-logo">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+    <span>Live</span>
+  </div>
+
+  <div id="yt-embed"></div>
+  <canvas id="canvas"></canvas>
+
+  <div id="status"><p>Waiting for Spotify...</p></div>
+
+  <div id="overlay">
+    <div id="track-info">
+      <div id="track-name">—</div>
+      <div id="artist-name">—</div>
+    </div>
+    <div id="right-hud">
+      <div id="mode-badge">—</div>
+      <div id="bpm-display">— BPM</div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl" id="vis-btn" onclick="toggleForceVis()">Visualizer</div>
+    <div class="ctrl" onclick="toggleFullscreen()">Fullscreen</div>
+    <div class="ctrl" onclick="logout()">Disconnect</div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = '23267977d16d48e1a9495de2b38e63c1';
+const REDIRECT_URI = 'https://natev42.github.io/spotify-viz';
+const SCOPES = 'user-read-currently-playing user-read-playback-state';
+
+let accessToken = null;
+let currentTrackId = null;
+let audioFeatures = null;
+let animFrame = null;
+let pollTimer = null;
+let forceVis = false;
+let analyser = null;
+
+// PKCE
+async function genVerifier() {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function genChallenge(v) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function login() {
+  const v = await genVerifier();
+  const c = await genChallenge(v);
+  sessionStorage.setItem('pkce', v);
+  const p = new URLSearchParams({ client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI, scope: SCOPES, code_challenge_method: 'S256', code_challenge: c });
+  window.location = 'https://accounts.spotify.com/authorize?' + p;
+}
+
+async function exchangeCode(code) {
+  const r = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: CLIENT_ID, code_verifier: sessionStorage.getItem('pkce') })
+  });
+  return (await r.json()).access_token;
+}
+
+async function spotifyGet(path) {
+  const r = await fetch('https://api.spotify.com/v1' + path, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if (r.status === 204 || r.status === 401) return null;
+  return r.json();
+}
+
+// YouTube embed via search
+function embedYT(artist, track) {
+  const q = encodeURIComponent(artist + ' ' + track + ' official music video');
+  document.getElementById('yt-embed').innerHTML =
+    `<iframe src="https://www.youtube.com/embed?listType=search&list=${q}&autoplay=1&rel=0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  document.getElementById('yt-embed').style.display = 'block';
+  document.getElementById('canvas').style.display = 'none';
+  document.getElementById('mode-badge').textContent = 'Music Video';
+  document.getElementById('status').style.display = 'none';
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+}
+
+function showVisualizer(features) {
+  document.getElementById('yt-embed').innerHTML = '';
+  document.getElementById('yt-embed').style.display = 'none';
+  document.getElementById('canvas').style.display = 'block';
+  document.getElementById('mode-badge').textContent = 'Visualizer';
+  document.getElementById('status').style.display = 'none';
+  startVis(features);
+}
+
+// Try mic
+async function tryMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    src.connect(analyser);
+  } catch(e) { analyser = null; }
+}
+
+// Visualizer
+function startVis(features) {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const tempo = (features && features.tempo) || 120;
+  const energy = (features && features.energy) || 0.5;
+  const valence = (features && features.valence) || 0.5;
+  const danceability = (features && features.danceability) || 0.5;
+  const beatMs = 60000 / tempo;
+
+  // Color palette from valence
+  const hBase = Math.round(valence * 280);
+  const hAccent = (hBase + 150) % 360;
+  const hTriad = (hBase + 240) % 360;
+
+  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  resize();
+  window.onresize = resize;
+
+  let lastBeat = performance.now();
+  let beatPhase = 0;
+  let time = 0;
+
+  // Particle system
+  const NUM_P = Math.round(60 + energy * 80);
+  const particles = Array.from({ length: NUM_P }, () => spawnParticle(canvas));
+
+  function spawnParticle(canvas) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random() * Math.min(canvas.width, canvas.height) * 0.3;
+    return {
+      x: canvas.width / 2 + Math.cos(angle) * dist,
+      y: canvas.height / 2 + Math.sin(angle) * dist,
+      vx: (Math.random() - 0.5) * (1 + energy * 2),
+      vy: (Math.random() - 0.5) * (1 + energy * 2),
+      r: Math.random() * 2.5 + 0.5,
+      life: Math.random(),
+      maxLife: 0.6 + Math.random() * 0.4,
+      hue: hBase + Math.random() * 60 - 30,
+    };
+  }
+
+  // Waveform ring points
+  const RING_PTS = 180;
+
+  function draw(now) {
+    animFrame = requestAnimationFrame(draw);
+    time = now * 0.001;
+
+    const elapsed = now - lastBeat;
+    if (elapsed >= beatMs) { lastBeat = now; beatPhase = 1.0; }
+    beatPhase *= (0.82 + danceability * 0.1);
+
+    let micLevel = 0;
+    if (analyser) {
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(buf);
+      micLevel = buf.reduce((a, b) => a + b, 0) / buf.length / 255;
+    }
+
+    const pulse = Math.max(beatPhase, micLevel * 1.8);
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const baseR = Math.min(canvas.width, canvas.height) * 0.2;
+
+    // Fade trail
+    ctx.fillStyle = `rgba(0,0,0,${0.12 + (1 - energy) * 0.08})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Background glow rings
+    for (let i = 4; i >= 1; i--) {
+      const r = baseR * i * (1 + pulse * 0.35 * ((5 - i) / 4));
+      const alpha = 0.04 + pulse * 0.08 * (i / 4);
+      const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+      g.addColorStop(0, `hsla(${hBase + i * 20},75%,55%,${alpha * 1.5})`);
+      g.addColorStop(0.5, `hsla(${hAccent},65%,45%,${alpha})`);
+      g.addColorStop(1, `hsla(${hTriad},60%,35%,0)`);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+
+    // Waveform ring
+    ctx.beginPath();
+    for (let i = 0; i <= RING_PTS; i++) {
+      const angle = (i / RING_PTS) * Math.PI * 2 - Math.PI / 2;
+      const wave = Math.sin(i * 0.18 + time * 2.5) * 0.5 + Math.sin(i * 0.07 + time * 1.3) * 0.5;
+      const distort = baseR * (0.88 + wave * 0.08 * energy + pulse * 0.18);
+      const x = cx + Math.cos(angle) * distort;
+      const y = cy + Math.sin(angle) * distort;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `hsla(${hBase},85%,65%,${0.35 + pulse * 0.45})`;
+    ctx.lineWidth = 1.5 + pulse * 2.5;
+    ctx.stroke();
+
+    // Bar ring
+    const BARS = 80;
+    for (let i = 0; i < BARS; i++) {
+      const angle = (i / BARS) * Math.PI * 2 - Math.PI / 2;
+      const barAmp = pulse * (0.6 + 0.4 * Math.abs(Math.sin(i * 0.19 + time * 1.8)));
+      const innerR = baseR * 1.0;
+      const outerR = innerR + baseR * (0.08 + barAmp * energy * 1.1);
+      const x1 = cx + Math.cos(angle) * innerR, y1 = cy + Math.sin(angle) * innerR;
+      const x2 = cx + Math.cos(angle) * outerR, y2 = cy + Math.sin(angle) * outerR;
+      const h = (hBase + (i / BARS) * 120) % 360;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = `hsla(${h},90%,68%,${0.45 + barAmp * 0.55})`;
+      ctx.lineWidth = 1.8 + pulse * 2;
+      ctx.stroke();
+    }
+
+    // Core orb
+    const orbR = baseR * (0.22 + pulse * 0.15);
+    const og = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbR);
+    og.addColorStop(0, `hsla(${hBase},100%,88%,${0.6 + pulse * 0.4})`);
+    og.addColorStop(0.5, `hsla(${hAccent},80%,60%,${0.3 + pulse * 0.3})`);
+    og.addColorStop(1, `hsla(${hTriad},70%,40%,0)`);
+    ctx.beginPath();
+    ctx.arc(cx, cy, orbR, 0, Math.PI * 2);
+    ctx.fillStyle = og;
+    ctx.fill();
+
+    // Particles
+    particles.forEach((p, idx) => {
+      p.x += p.vx * (1 + pulse * 2);
+      p.y += p.vy * (1 + pulse * 2);
+      p.life -= 0.004 + pulse * 0.008;
+
+      if (p.life <= 0 || p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+        particles[idx] = spawnParticle(canvas);
+        return;
+      }
+
+      const alpha = p.life * (0.5 + pulse * 0.4);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * (0.5 + pulse * 0.8), 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue},85%,70%,${alpha})`;
+      ctx.fill();
+    });
+
+    // Beat flash
+    if (pulse > 0.5) {
+      const flashA = (pulse - 0.5) * 0.12;
+      const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(canvas.width, canvas.height) * 0.6);
+      fg.addColorStop(0, `hsla(${hBase},100%,85%,${flashA})`);
+      fg.addColorStop(1, 'transparent');
+      ctx.fillStyle = fg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  draw(performance.now());
+}
+
+// Controls
+function toggleForceVis() {
+  forceVis = !forceVis;
+  document.getElementById('vis-btn').classList.toggle('active', forceVis);
+  if (forceVis && audioFeatures) showVisualizer(audioFeatures);
+  else if (!forceVis && currentTrackId) {
+    const name = document.getElementById('track-name').textContent;
+    const artist = document.getElementById('artist-name').textContent;
+    if (name && name !== '—') embedYT(artist, name);
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+}
+
+function logout() {
+  accessToken = null; currentTrackId = null;
+  clearInterval(pollTimer);
+  if (animFrame) cancelAnimationFrame(animFrame);
+  document.getElementById('player').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// Poll Spotify
+async function poll() {
+  try {
+    const data = await spotifyGet('/me/player/currently-playing');
+    if (!data || !data.item) {
+      document.getElementById('track-name').textContent = 'Nothing playing';
+      document.getElementById('artist-name').textContent = '';
+      document.getElementById('bpm-display').textContent = '— BPM';
+      document.getElementById('status').style.display = 'block';
+      return;
+    }
+    const track = data.item;
+    const artist = track.artists.map(a => a.name).join(', ');
+    document.getElementById('track-name').textContent = track.name;
+    document.getElementById('artist-name').textContent = artist;
+
+    if (track.id !== currentTrackId) {
+      currentTrackId = track.id;
+      audioFeatures = await spotifyGet('/audio-features/' + track.id);
+      if (audioFeatures && audioFeatures.tempo) {
+        document.getElementById('bpm-display').textContent = Math.round(audioFeatures.tempo) + ' BPM';
+      }
+      if (forceVis) {
+        showVisualizer(audioFeatures);
+      } else {
+        embedYT(artist, track.name);
+        // Check after 5s if YouTube loaded; fallback to visualizer
+        setTimeout(() => {
+          const iframe = document.querySelector('#yt-embed iframe');
+          if (!iframe) showVisualizer(audioFeatures);
+        }, 5000);
+      }
+    }
+  } catch(e) { console.warn('Poll error:', e); }
+}
+
+// Init
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) {
+    history.replaceState({}, '', window.location.pathname);
+    try {
+      accessToken = await exchangeCode(code);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('player').style.display = 'block';
+      await tryMic();
+      await poll();
+      pollTimer = setInterval(poll, 3000);
+    } catch(e) {
+      alert('Auth failed. Make sure your Redirect URI in Spotify matches exactly: ' + REDIRECT_URI);
+    }
+  }
+}
+
+init();
+</script>
+</body>
+</html>
