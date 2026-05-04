@@ -9,40 +9,49 @@
 <style>
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
   body{background:#000;color:#fff;font-family:'DM Mono',monospace;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+
   #login-screen{display:flex;flex-direction:column;align-items:center;animation:fadeIn 1.2s ease;}
   @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
   .logo{font-family:'Bebas Neue',sans-serif;font-size:5.5rem;letter-spacing:.14em;line-height:1;background:linear-gradient(135deg,#1DB954,#00d4ff 60%,#b060ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.4rem;}
   .sub{font-size:.65rem;letter-spacing:.35em;color:#444;text-transform:uppercase;margin-bottom:3rem;}
   .connect-btn{background:#1DB954;color:#000;border:none;padding:15px 52px;border-radius:40px;font-family:'DM Mono',monospace;font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:transform .15s,box-shadow .15s;box-shadow:0 0 50px rgba(29,185,84,.25);}
   .connect-btn:hover{transform:scale(1.05);box-shadow:0 0 70px rgba(29,185,84,.5);}
+
   #player{display:none;width:100vw;height:100vh;position:relative;background:#000;}
-  #canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;}
-  #yt-wrap{position:absolute;inset:0;z-index:2;display:none;pointer-events:none;}
-  #yt-wrap iframe,#yt-wrap div{width:100%!important;height:100%!important;border:none;}
-  #player.vid-on #canvas{opacity:.3;}
-  #player.vid-on #yt-wrap{display:block;}
-  #overlay{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:120px 40px 32px;background:linear-gradient(transparent,rgba(0,0,0,.93));display:flex;flex-direction:column;gap:10px;}
+
+  /* YouTube fullscreen */
+  #yt-wrap{position:absolute;inset:0;z-index:1;background:#000;}
+  #yt-wrap iframe,#yt-div{width:100%!important;height:100%!important;border:none;}
+
+  /* No video fallback */
+  #no-video{position:absolute;inset:0;z-index:1;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#111 0%,#000 100%);}
+  #no-video p{font-size:.7rem;letter-spacing:.3em;color:#222;text-transform:uppercase;}
+
+  /* Overlay on top of video */
+  #overlay{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:120px 40px 32px;background:linear-gradient(transparent,rgba(0,0,0,.92));display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+
   #lyrics-block{text-align:center;min-height:5rem;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;margin-bottom:8px;}
-  #lyric-prev{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.08em;color:rgba(255,255,255,.18);transition:all .5s;}
-  #lyric-current{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:.07em;color:#fff;text-shadow:0 0 40px var(--tglow,rgba(255,255,255,.5));transition:color .6s,text-shadow .6s;line-height:1.1;}
+  #lyric-prev{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.08em;color:rgba(255,255,255,.2);transition:all .5s;}
+  #lyric-current{font-family:'Bebas Neue',sans-serif;font-size:2.6rem;letter-spacing:.07em;color:#fff;text-shadow:0 0 40px var(--tglow,rgba(255,255,255,.5));transition:color .6s,text-shadow .6s;line-height:1.1;}
   #lyric-next{font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.08em;color:rgba(255,255,255,.22);transition:all .5s;}
-  #theme-label{text-align:center;font-size:.52rem;letter-spacing:.3em;text-transform:uppercase;color:rgba(255,255,255,.18);min-height:1rem;}
+
   #track-row{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;}
-  #track-name{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;letter-spacing:.07em;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;}
-  #artist-name{font-size:.65rem;letter-spacing:.22em;color:#444;margin-top:4px;text-transform:uppercase;}
-  #right-hud{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
-  #mode-badge{font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:#1DB954;border:1px solid rgba(29,185,84,.3);border-radius:20px;padding:4px 12px;}
-  #bpm-display{font-size:.55rem;letter-spacing:.15em;color:#252525;}
-  #controls{position:absolute;top:18px;right:18px;z-index:20;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
-  .ctrl{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.07);color:#444;font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;padding:7px 13px;border-radius:20px;cursor:pointer;transition:color .2s,border-color .2s;backdrop-filter:blur(10px);}
-  .ctrl:hover{color:#aaa;border-color:rgba(255,255,255,.18);}
-  .ctrl.active{color:#1DB954;border-color:rgba(29,185,84,.4);}
+  #track-name{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:.07em;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;}
+  #artist-name{font-size:.65rem;letter-spacing:.22em;color:#555;margin-top:4px;text-transform:uppercase;}
+  #bpm-display{font-size:.55rem;letter-spacing:.15em;color:#333;}
+
+  #controls{position:absolute;top:18px;right:18px;z-index:20;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;pointer-events:all;}
+  .ctrl{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08);color:#444;font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;padding:7px 13px;border-radius:20px;cursor:pointer;transition:color .2s,border-color .2s;backdrop-filter:blur(10px);}
+  .ctrl:hover{color:#aaa;border-color:rgba(255,255,255,.2);}
   .ctrl.lights-on{color:#ffcc00;border-color:rgba(255,204,0,.4);}
+
   #status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;text-align:center;pointer-events:none;}
   #status p{font-size:.68rem;letter-spacing:.25em;color:#1a1a1a;text-transform:uppercase;}
-  #sp-logo{position:absolute;top:20px;left:22px;z-index:10;display:flex;align-items:center;gap:8px;opacity:.3;}
+
+  #sp-logo{position:absolute;top:20px;left:22px;z-index:10;display:flex;align-items:center;gap:8px;opacity:.3;pointer-events:none;}
   #sp-logo svg{width:14px;height:14px;fill:#1DB954;}
   #sp-logo span{font-size:.55rem;letter-spacing:.2em;color:#2a2a2a;text-transform:uppercase;}
+
   #ha-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);align-items:center;justify-content:center;}
   #ha-modal.open{display:flex;}
   #ha-box{background:#060606;border:1px solid #181818;border-radius:18px;padding:32px;width:500px;max-width:92vw;max-height:80vh;overflow-y:auto;}
@@ -71,7 +80,7 @@
 
 <div id="login-screen">
   <div class="logo">VIZIFY</div>
-  <div class="sub">Spotify · YouTube · AI Visuals</div>
+  <div class="sub">Spotify · YouTube · Lyrics</div>
   <button class="connect-btn" onclick="login()">Connect Spotify</button>
 </div>
 
@@ -80,30 +89,28 @@
     <svg viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
     <span>Live</span>
   </div>
-  <canvas id="canvas"></canvas>
+
   <div id="yt-wrap"><div id="yt-div"></div></div>
+  <div id="no-video"><p>No video found — playing audio only</p></div>
   <div id="status"><p>Waiting for Spotify...</p></div>
+
   <div id="overlay">
     <div id="lyrics-block">
       <div id="lyric-prev"></div>
       <div id="lyric-current"></div>
       <div id="lyric-next"></div>
     </div>
-    <div id="theme-label"></div>
     <div id="track-row">
       <div id="track-info">
         <div id="track-name">—</div>
         <div id="artist-name">—</div>
       </div>
-      <div id="right-hud">
-        <div id="mode-badge">—</div>
-        <div id="bpm-display">— BPM</div>
-      </div>
+      <div id="bpm-display">— BPM</div>
     </div>
   </div>
+
   <div id="controls">
     <div class="ctrl" id="lights-btn" onclick="openLightsModal()">Lights</div>
-    <div class="ctrl" id="vid-btn" onclick="toggleVideo()">Show Video</div>
     <div class="ctrl" onclick="toggleFullscreen()">Fullscreen</div>
     <div class="ctrl" onclick="logout()">Disconnect</div>
   </div>
@@ -130,38 +137,35 @@ const SCOPES       = 'user-read-currently-playing user-read-playback-state';
 const YT_KEY       = 'AIzaSyCDR7-_K3eMUaijeS7zo0nD1gv0vnDIs4Y';
 const HA_URL       = 'http://homeassistant.local:8123';
 const HA_TOKEN     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI3MWU4MzZjZmMxMjY0NjMzOTc3NDEzYjVjNDc1NWUxZCIsImlhdCI6MTc3Nzg0NDUxNywiZXhwIjoyMDkzMjA0NTE3fQ.isDztHb5r-xuHTFMBfm5fep9mhdssU73NhmDWIhu5RE';
-const YT_SKIP_SEC  = 10;
+const YT_SKIP      = 10;
 
 let accessToken    = null;
 let currentTrackId = null;
-let audioFeatures  = null;
-let animFrame      = null;
 let pollTimer      = null;
-let videoOn        = false;
-let hasVideo       = false;
 let ytPlayer       = null;
 let ytApiReady     = false;
 let lightsActive   = false;
-let analyser       = null;
 let allLights      = [];
 let selectedLights = [];
 let lastLightBeat  = 0;
+let beatTimer      = null;
 let syncedLyrics   = [];
 let currentLyricIdx= -1;
 let playbackMs     = 0;
 let lastPollAt     = 0;
+let tempo          = 120;
+let energy         = 0.5;
+let currentHue     = 200;
 
 // ── YOUTUBE IFRAME API ────────────────────────────────────────────────────────
 window.onYouTubeIframeAPIReady = () => { ytApiReady = true; };
 
 function loadVideo(videoId) {
-  // Always destroy old player first to fully stop audio
   killPlayer();
-  hasVideo = true;
-  document.getElementById('mode-badge').textContent = 'Visualizer + Video';
+  document.getElementById('yt-wrap').style.display = 'block';
+  document.getElementById('no-video').style.display = 'none';
 
   function doCreate() {
-    // Reset the div so YT has a clean target
     document.getElementById('yt-div').innerHTML = '';
     ytPlayer = new YT.Player('yt-div', {
       width: '100%',
@@ -174,28 +178,21 @@ function loadVideo(videoId) {
         rel: 0,
         modestbranding: 1,
         loop: 1,
-        playlist: videoId, // needed for loop
+        playlist: videoId,
         enablejsapi: 1,
         origin: window.location.origin,
       },
       events: {
         onReady(e) {
-          // Triple-silence: mute flag + volume 0 + setVolume API
           e.target.mute();
           e.target.setVolume(0);
-          // seekTo skips the intro — this is the reliable way, start= param often ignored
-          e.target.seekTo(YT_SKIP_SEC, true);
+          e.target.seekTo(YT_SKIP, true);
           e.target.playVideo();
         },
         onStateChange(e) {
-          // Re-mute every state change — prevents any audio bleed
           try { e.target.mute(); e.target.setVolume(0); } catch(_) {}
-          // Re-seek if it loops back to 0
           if (e.data === YT.PlayerState.PLAYING) {
-            try {
-              const t = e.target.getCurrentTime();
-              if (t < YT_SKIP_SEC - 1) e.target.seekTo(YT_SKIP_SEC, true);
-            } catch(_) {}
+            try { if (e.target.getCurrentTime() < YT_SKIP - 1) e.target.seekTo(YT_SKIP, true); } catch(_) {}
           }
         }
       }
@@ -203,90 +200,149 @@ function loadVideo(videoId) {
   }
 
   if (ytApiReady) doCreate();
-  else {
-    const check = setInterval(() => { if (ytApiReady) { clearInterval(check); doCreate(); } }, 200);
-  }
+  else { const c = setInterval(() => { if (ytApiReady) { clearInterval(c); doCreate(); } }, 200); }
 }
 
 function killPlayer() {
   if (ytPlayer) {
-    try { ytPlayer.stopVideo(); } catch(_) {}
-    try { ytPlayer.destroy(); } catch(_) {}
+    try { ytPlayer.stopVideo(); ytPlayer.destroy(); } catch(_) {}
     ytPlayer = null;
   }
   document.getElementById('yt-div').innerHTML = '';
-  hasVideo = false;
-  videoOn = false;
-  document.getElementById('player').classList.remove('vid-on');
-  document.getElementById('vid-btn').textContent = 'Show Video';
-  document.getElementById('mode-badge').textContent = 'Visualizer';
 }
 
-function toggleVideo() {
-  if (!hasVideo) return;
-  videoOn = !videoOn;
-  document.getElementById('player').classList.toggle('vid-on', videoOn);
-  document.getElementById('vid-btn').textContent = videoOn ? 'Hide Video' : 'Show Video';
-  if (ytPlayer) {
-    try {
-      if (videoOn) {
-        ytPlayer.playVideo();
-        ytPlayer.mute();
-        ytPlayer.setVolume(0);
-      } else {
-        ytPlayer.pauseVideo();
+function showNoVideo() {
+  killPlayer();
+  document.getElementById('yt-wrap').style.display = 'none';
+  document.getElementById('no-video').style.display = 'flex';
+}
+
+// ── BEAT SYNC (timer-based from Spotify tempo) ────────────────────────────────
+const LIGHT_HUES = [0, 30, 60, 120, 180, 220, 270, 300, 340];
+let hueIdx = 0;
+
+function startBeatSync() {
+  if (beatTimer) clearInterval(beatTimer);
+  const beatMs = 60000 / tempo;
+  beatTimer = setInterval(() => {
+    if (!lightsActive || !selectedLights.length) return;
+    const hue = LIGHT_HUES[hueIdx % LIGHT_HUES.length];
+    hueIdx++;
+    currentHue = hue;
+    const bri = Math.round(130 + energy * 120);
+    selectedLights.forEach(id => haPost('/services/light/turn_on', { entity_id: id, hs_color: [hue, 100], brightness: bri, transition: 0 }));
+    setTimeout(() => {
+      if (!lightsActive) return;
+      selectedLights.forEach(id => haPost('/services/light/turn_on', { entity_id: id, brightness: Math.round(15 + energy * 35), transition: 0 }));
+    }, Math.min(beatMs * 0.4, 200));
+  }, beatMs);
+}
+
+// ── KEYWORD → LIGHT HUE ───────────────────────────────────────────────────────
+const LYRIC_HUES = {
+  money:['money','cash','dollar','rich','gold','paid','bands','bag','flex'],
+  fire: ['fire','burn','flame','hot','blaze','lit','hell','rage'],
+  love: ['love','heart','kiss','baby','babe','forever','roses','soul','honey'],
+  space:['space','stars','galaxy','moon','sky','cosmos','heaven','fly'],
+  rain: ['rain','storm','tears','cry','flood','ocean','waves'],
+  dark: ['dark','shadow','death','blood','pain','broken','fear','nightmare'],
+  nature:['trees','flowers','green','forest','sunshine','bloom','earth'],
+};
+const HUE_MAP = { money:50, fire:10, love:340, space:220, rain:200, dark:260, nature:120 };
+
+function lyricHue(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  for (const [theme, words] of Object.entries(LYRIC_HUES)) {
+    if (words.some(w => lower.includes(w))) return HUE_MAP[theme];
+  }
+  return null;
+}
+
+// ── LRCLIB LYRICS ─────────────────────────────────────────────────────────────
+async function fetchLyrics(artist, track, album) {
+  syncedLyrics = []; currentLyricIdx = -1; clearLD();
+  try {
+    const q = new URLSearchParams({ artist_name: artist, track_name: track });
+    if (album) q.set('album_name', album);
+    const r = await fetch('https://lrclib.net/api/get?' + q);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.syncedLyrics) syncedLyrics = parseLRC(d.syncedLyrics);
+    else if (d.plainLyrics) {
+      const ls = d.plainLyrics.split('\n').filter(l => l.trim());
+      syncedLyrics = ls.map((text, i) => ({ time: (i / ls.length) * 180000, text }));
+    }
+  } catch(e) { console.warn('Lyrics:', e); }
+}
+function parseLRC(lrc) {
+  return lrc.split('\n').reduce((a, l) => {
+    const m = l.match(/^\[(\d+):(\d+\.\d+)\](.*)/);
+    if (m) { const ms = parseInt(m[1])*60000+parseFloat(m[2])*1000, t = m[3].trim(); if (t) a.push({ time: ms, text: t }); }
+    return a;
+  }, []).sort((a, b) => a.time - b.time);
+}
+function clearLD() { ['lyric-prev','lyric-current','lyric-next'].forEach(id => document.getElementById(id).textContent = ''); }
+
+function tickLyrics() {
+  if (!syncedLyrics.length) return;
+  const now = playbackMs + (Date.now() - lastPollAt);
+  let idx = -1;
+  for (let i = 0; i < syncedLyrics.length; i++) { if (syncedLyrics[i].time <= now) idx = i; else break; }
+  if (idx !== currentLyricIdx && idx >= 0) {
+    currentLyricIdx = idx;
+    const c = syncedLyrics[idx], p = syncedLyrics[idx-1], n = syncedLyrics[idx+1];
+    document.getElementById('lyric-prev').textContent = p ? p.text : '';
+    document.getElementById('lyric-current').textContent = c.text;
+    document.getElementById('lyric-next').textContent = n ? n.text : '';
+    // Flash lights to lyric theme color
+    const h = lyricHue([p,c,n].filter(Boolean).map(l=>l.text).join(' '));
+    if (h !== null) {
+      document.documentElement.style.setProperty('--tglow', `hsla(${h},90%,65%,0.7)`);
+      document.getElementById('lyric-current').style.color = `hsl(${h},95%,85%)`;
+      if (lightsActive && selectedLights.length) {
+        selectedLights.forEach(id => haPost('/services/light/turn_on', { entity_id: id, hs_color: [h, 90], brightness: 200, transition: 0.3 }));
       }
-    } catch(_) {}
+    }
   }
 }
 
-// ── KEYWORD THEME ENGINE ──────────────────────────────────────────────────────
-const THEME_KEYWORDS = {
-  money:  ['money','cash','dollar','rich','wealth','bank','paid','check','bands','guap','bread','paper','hustle','boss','drip','gold','spend','bought','buy','sell','profit','coin','bills','stack','bag','flex'],
-  fire:   ['fire','burn','flame','hot','heat','blaze','lit','smoke','ash','inferno','torch','ignite','sizzle','blazing','hell','demon','devil','rage','angry','furious','explode','bomb'],
-  love:   ['love','heart','kiss','baby','babe','darling','forever','together','hold','touch','feel','romance','roses','beautiful','gorgeous','lovely','adore','cherish','miss','need','want','eyes','smile','soul','honey'],
-  space:  ['space','stars','galaxy','universe','planet','moon','sky','cosmos','orbit','infinite','beyond','supernova','rocket','float','gravity','astral','celestial','midnight','heaven','above','fly','higher','cloud'],
-  rain:   ['rain','storm','thunder','lightning','wet','tears','cry','pour','flood','drown','water','waves','ocean','river','drops','hurricane','grey','gray','umbrella'],
-  party:  ['party','dance','club','night','turn up','vibe','shot','drink','drunk','celebrate','dj','bass','crowd','wild','crazy','jump','bounce','move','groove','banger','loud','anthem'],
-  nature: ['trees','flowers','garden','green','nature','forest','birds','breeze','sunshine','meadow','bloom','grow','earth','spring','leaves','petals','butterflies','peaceful','serene','alive','grass','mountains','fresh'],
-  cold:   ['cold','ice','frozen','winter','snow','freeze','chill','numb','alone','empty','hollow','lonely','lost','silence','quiet','nothing','void','distant','far','gone','leaving'],
-  dark:   ['dark','shadow','death','die','blood','knife','gun','war','pain','suffer','broken','shattered','chaos','destroy','hate','revenge','enemy','villain','monster','fear','nightmare','trapped','falling'],
-  energy: ['run','fast','power','strong','unstoppable','champion','win','fight','warrior','beast','never stop','push','drive','fuel','electric','charged','surge','rush','speed','go'],
-  sad:    ['sad','hurt','cry','broken','alone','miss','gone','lost','leave','goodbye','over','end','empty','hollow','depression','tears','heartbreak','regret','sorry','wish','remember'],
-  dream:  ['dream','imagine','wonder','magic','fantasy','wish','hope','believe','vision','surreal','floating','ethereal','clouds','escape','free','transcend','beyond','infinite','possibilities','tomorrow'],
-};
-function detectTheme(text) {
-  if (!text) return 'default';
-  const lower = text.toLowerCase();
-  const scores = {};
-  for (const [t,words] of Object.entries(THEME_KEYWORDS))
-    scores[t] = words.reduce((n,w) => n+(lower.includes(w)?w.split(' ').length:0), 0);
-  const best = Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
-  return best[1]>0 ? best[0] : 'default';
-}
+setInterval(tickLyrics, 100);
 
-const THEMES = {
-  money:   {hBase:45, hAccent:55, hTriad:30, pType:'money', bg:'gold',   fx:null},
-  fire:    {hBase:10, hAccent:30, hTriad:50, pType:'fire',  bg:'fire',   fx:null},
-  love:    {hBase:340,hAccent:310,hTriad:20, pType:'heart', bg:'neon',   fx:null},
-  space:   {hBase:220,hAccent:260,hTriad:180,pType:'star',  bg:'space',  fx:'aurora'},
-  rain:    {hBase:200,hAccent:220,hTriad:180,pType:'rain',  bg:'ocean',  fx:null},
-  party:   {hBase:280,hAccent:60, hTriad:160,pType:'spark', bg:'club',   fx:'strobe'},
-  nature:  {hBase:120,hAccent:80, hTriad:160,pType:'petal', bg:'forest', fx:null},
-  cold:    {hBase:190,hAccent:210,hTriad:170,pType:'snow',  bg:'space',  fx:null},
-  dark:    {hBase:260,hAccent:240,hTriad:300,pType:'spark', bg:'void',   fx:'tunnel'},
-  energy:  {hBase:50, hAccent:20, hTriad:280,pType:'spark', bg:'neon',   fx:'strobe'},
-  sad:     {hBase:220,hAccent:200,hTriad:240,pType:'rain',  bg:'ocean',  fx:null},
-  dream:   {hBase:280,hAccent:320,hTriad:200,pType:'star',  bg:'space',  fx:'aurora'},
-  default: {hBase:200,hAccent:340,hTriad:60, pType:'spark', bg:'club',   fx:null},
-};
-let theme = {...THEMES.default, name:'default'};
-function setTheme(name) {
-  if (!THEMES[name]||name===theme.name) return;
-  theme = {...THEMES[name], name};
-  document.getElementById('theme-label').textContent = name;
-  document.documentElement.style.setProperty('--tglow',`hsla(${theme.hBase},90%,65%,0.7)`);
-  document.getElementById('lyric-current').style.color = `hsl(${theme.hBase},95%,85%)`;
+// ── HOME ASSISTANT ────────────────────────────────────────────────────────────
+async function haGet(p) { try { return (await fetch(HA_URL+'/api'+p, { headers:{ Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json' }})).json(); } catch { return null; } }
+async function haPost(p, b) { try { await fetch(HA_URL+'/api'+p, { method:'POST', headers:{ Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json' }, body:JSON.stringify(b) }); } catch {} }
+async function loadAllLights() {
+  document.getElementById('ha-status').textContent = 'Connecting...';
+  const s = await haGet('/states');
+  if (!s) { document.getElementById('ha-status').textContent = 'Could not reach HA — must be on home WiFi.'; return; }
+  allLights = s.filter(x => x.entity_id.startsWith('light.'));
+  document.getElementById('ha-status').textContent = `Found ${allLights.length} lights`;
+  renderLights();
+}
+function renderLights() {
+  const list = document.getElementById('lights-list'); list.innerHTML = '';
+  allLights.forEach(l => {
+    const sel = selectedLights.includes(l.entity_id), div = document.createElement('div');
+    div.className = 'light-item' + (sel ? ' selected' : '');
+    div.innerHTML = `<div class="light-dot"></div><div class="light-name">${l.attributes.friendly_name||l.entity_id}</div><div class="light-check">✓</div>`;
+    div.onclick = () => {
+      selectedLights = selectedLights.includes(l.entity_id) ? selectedLights.filter(id=>id!==l.entity_id) : [...selectedLights, l.entity_id];
+      div.classList.toggle('selected', selectedLights.includes(l.entity_id));
+      div.querySelector('.light-check').style.opacity = selectedLights.includes(l.entity_id) ? '1' : '0';
+    };
+    list.appendChild(div);
+  });
+}
+function selectAll() { selectedLights = allLights.map(l => l.entity_id); renderLights(); }
+function openLightsModal() { document.getElementById('ha-modal').classList.add('open'); loadAllLights(); }
+function closeLightsModal() { document.getElementById('ha-modal').classList.remove('open'); }
+function saveLights() {
+  lightsActive = selectedLights.length > 0;
+  document.getElementById('lights-btn').classList.toggle('lights-on', lightsActive);
+  if (lightsActive) startBeatSync();
+  else if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
+  closeLightsModal();
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -299,195 +355,69 @@ async function exchangeCode(code){const r=await fetch('https://accounts.spotify.
 async function spGet(path){const r=await fetch('https://api.spotify.com/v1'+path,{headers:{Authorization:'Bearer '+accessToken}});if(r.status===204||r.status===401)return null;return r.json();}
 
 // ── YOUTUBE SEARCH ────────────────────────────────────────────────────────────
-async function searchYT(artist,track){
-  const q=encodeURIComponent(artist+' '+track+' official music video');
-  try{
-    const r=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${YT_KEY}`);
-    const d=await r.json();
-    if(d.items&&d.items.length>0)return d.items[0].id.videoId;
-  }catch(e){console.warn('YT search:',e);}
+async function searchYT(artist, track) {
+  const q = encodeURIComponent(artist+' '+track+' official music video');
+  try {
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${YT_KEY}`);
+    const d = await r.json();
+    if (d.items && d.items.length > 0) return d.items[0].id.videoId;
+  } catch(e) { console.warn('YT:', e); }
   return null;
-}
-
-// ── LRCLIB LYRICS ─────────────────────────────────────────────────────────────
-async function fetchLyrics(artist,track,album){
-  syncedLyrics=[];currentLyricIdx=-1;clearLD();
-  try{
-    const q=new URLSearchParams({artist_name:artist,track_name:track});
-    if(album)q.set('album_name',album);
-    const r=await fetch('https://lrclib.net/api/get?'+q);
-    if(!r.ok)return;
-    const d=await r.json();
-    if(d.syncedLyrics)syncedLyrics=parseLRC(d.syncedLyrics);
-    else if(d.plainLyrics){const ls=d.plainLyrics.split('\n').filter(l=>l.trim());syncedLyrics=ls.map((text,i)=>({time:(i/ls.length)*180000,text}));}
-  }catch(e){console.warn('Lyrics:',e);}
-}
-function parseLRC(lrc){return lrc.split('\n').reduce((a,l)=>{const m=l.match(/^\[(\d+):(\d+\.\d+)\](.*)/);if(m){const ms=parseInt(m[1])*60000+parseFloat(m[2])*1000,t=m[3].trim();if(t)a.push({time:ms,text:t});}return a;},[]).sort((a,b)=>a.time-b.time);}
-function clearLD(){['lyric-prev','lyric-current','lyric-next','theme-label'].forEach(id=>document.getElementById(id).textContent='');}
-function tickLyrics(){
-  if(!syncedLyrics.length)return;
-  const now=playbackMs+(Date.now()-lastPollAt);
-  let idx=-1;
-  for(let i=0;i<syncedLyrics.length;i++){if(syncedLyrics[i].time<=now)idx=i;else break;}
-  if(idx!==currentLyricIdx&&idx>=0){
-    currentLyricIdx=idx;
-    const c=syncedLyrics[idx],p=syncedLyrics[idx-1],n=syncedLyrics[idx+1];
-    document.getElementById('lyric-prev').textContent=p?p.text:'';
-    document.getElementById('lyric-current').textContent=c.text;
-    document.getElementById('lyric-next').textContent=n?n.text:'';
-    setTheme(detectTheme([p,c,n].filter(Boolean).map(l=>l.text).join(' ')));
-  }
-}
-
-// ── HOME ASSISTANT ────────────────────────────────────────────────────────────
-async function haGet(p){try{return(await fetch(HA_URL+'/api'+p,{headers:{Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json'}})).json();}catch{return null;}}
-async function haPost(p,b){try{await fetch(HA_URL+'/api'+p,{method:'POST',headers:{Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(b)});}catch{}}
-async function loadAllLights(){document.getElementById('ha-status').textContent='Connecting...';const s=await haGet('/states');if(!s){document.getElementById('ha-status').textContent='Could not reach HA — must be on home WiFi.';return;}allLights=s.filter(x=>x.entity_id.startsWith('light.'));document.getElementById('ha-status').textContent=`Found ${allLights.length} lights`;renderLights();}
-function renderLights(){const list=document.getElementById('lights-list');list.innerHTML='';allLights.forEach(l=>{const sel=selectedLights.includes(l.entity_id),div=document.createElement('div');div.className='light-item'+(sel?' selected':'');div.innerHTML=`<div class="light-dot"></div><div class="light-name">${l.attributes.friendly_name||l.entity_id}</div><div class="light-check">✓</div>`;div.onclick=()=>{selectedLights=selectedLights.includes(l.entity_id)?selectedLights.filter(id=>id!==l.entity_id):[...selectedLights,l.entity_id];div.classList.toggle('selected',selectedLights.includes(l.entity_id));div.querySelector('.light-check').style.opacity=selectedLights.includes(l.entity_id)?'1':'0';};list.appendChild(div);});}
-function selectAll(){selectedLights=allLights.map(l=>l.entity_id);renderLights();}
-function openLightsModal(){document.getElementById('ha-modal').classList.add('open');loadAllLights();}
-function closeLightsModal(){document.getElementById('ha-modal').classList.remove('open');}
-function saveLights(){lightsActive=selectedLights.length>0;document.getElementById('lights-btn').classList.toggle('lights-on',lightsActive);closeLightsModal();}
-async function syncLights(pulse,energy){
-  if(!lightsActive||!selectedLights.length)return;
-  const now=Date.now();if(pulse<0.65||now-lastLightBeat<220)return;
-  lastLightBeat=now;
-  const bri=Math.round(130+energy*120);
-  selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,hs_color:[theme.hBase,100],brightness:bri,transition:0}));
-  setTimeout(()=>{if(!lightsActive)return;selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,brightness:Math.round(15+energy*35),transition:0}));},110);
-}
-
-// ── MIC ───────────────────────────────────────────────────────────────────────
-async function tryMic(){try{const s=await navigator.mediaDevices.getUserMedia({audio:true});const a=new AudioContext();analyser=a.createAnalyser();analyser.fftSize=512;a.createMediaStreamSource(s).connect(analyser);}catch{analyser=null;}}
-
-// ── VISUALIZER ────────────────────────────────────────────────────────────────
-function startVis(features){
-  if(animFrame)cancelAnimationFrame(animFrame);
-  const cv=document.getElementById('canvas'),ctx=cv.getContext('2d');
-  const tempo=(features&&features.tempo)||120,energy=(features&&features.energy)||0.5,dance=(features&&features.danceability)||0.5,beatMs=60000/tempo;
-  const resize=()=>{cv.width=window.innerWidth;cv.height=window.innerHeight;};
-  resize();window.onresize=resize;
-
-  const NP=Math.round(100+energy*150);
-  const parts=Array.from({length:NP},spawnP);
-  function spawnP(){const a=Math.random()*Math.PI*2,d=Math.random()*Math.min(cv.width,cv.height)*.35;return{x:cv.width/2+Math.cos(a)*d,y:cv.height/2+Math.sin(a)*d,vx:(Math.random()-.5)*(1+energy*2.5),vy:(Math.random()-.5)*(1+energy*2.5),r:Math.random()*3+.5,life:Math.random(),hue:theme.hBase+Math.random()*80-40,trail:[],type:theme.pType,spin:(Math.random()-.5)*.2,angle:Math.random()*Math.PI*2};}
-
-  const NL=Math.round(5+energy*9);
-  const lasers=Array.from({length:NL},(_,i)=>({angle:(i/NL)*Math.PI*2,speed:(Math.random()-.5)*.007*(1+energy),width:Math.random()*1.5+.5}));
-  const smoke=Array.from({length:40},mkSmoke);
-  function mkSmoke(){return{x:Math.random()*cv.width,y:cv.height+20,vx:(Math.random()-.5)*.5,vy:-(Math.random()*1+.3),size:Math.random()*150+80,alpha:Math.random()*.03+.007,life:1};}
-  const stars=Array.from({length:220},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.5+.3,tw:Math.random()*Math.PI*2}));
-
-  let lb=performance.now(),bp=0,sb=0,time=0;
-  const RING=220,BARS=100;
-
-  function drawP(p,pulse){
-    const s=p.r*(.5+pulse*.9),al=p.life*(.5+pulse*.4);
-    ctx.save();ctx.translate(p.x,p.y);p.angle+=p.spin*(1+pulse);ctx.rotate(p.angle);
-    const t=p.type;
-    if(t==='money'){ctx.fillStyle=`hsla(110,75%,50%,${al})`;ctx.fillRect(-s*1.3,-s*.8,s*2.6,s*1.6);ctx.fillStyle=`hsla(110,60%,88%,${al})`;ctx.font=`bold ${Math.round(s*1.8)}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('$',0,0);}
-    else if(t==='heart'){ctx.fillStyle=`hsla(${p.hue},90%,65%,${al})`;ctx.beginPath();ctx.moveTo(0,-s*.5);ctx.bezierCurveTo(s,-s*1.5,s*2,0,0,s*1.5);ctx.bezierCurveTo(-s*2,0,-s,-s*1.5,0,-s*.5);ctx.fill();}
-    else if(t==='star'){ctx.fillStyle=`hsla(${p.hue},90%,80%,${al})`;ctx.beginPath();for(let i=0;i<5;i++){const a1=(i*2/5)*Math.PI*2-Math.PI/2,a2=((i*2+1)/5)*Math.PI*2-Math.PI/2;(i===0?ctx.moveTo:ctx.lineTo).call(ctx,Math.cos(a1)*s*1.5,Math.sin(a1)*s*1.5);ctx.lineTo(Math.cos(a2)*s*.6,Math.sin(a2)*s*.6);}ctx.closePath();ctx.fill();}
-    else if(t==='fire'){const fg=ctx.createRadialGradient(0,s,0,0,-s,s*2);fg.addColorStop(0,`hsla(50,100%,80%,${al})`);fg.addColorStop(.4,`hsla(20,100%,60%,${al*.7})`);fg.addColorStop(1,`hsla(0,100%,30%,0)`);ctx.fillStyle=fg;ctx.beginPath();ctx.ellipse(0,0,s*.6,s*1.8,0,0,Math.PI*2);ctx.fill();}
-    else if(t==='rain'){ctx.strokeStyle=`hsla(${p.hue},80%,70%,${al})`;ctx.lineWidth=s*.4;ctx.beginPath();ctx.moveTo(0,-s*2);ctx.lineTo(0,s*2);ctx.stroke();}
-    else if(t==='snow'){ctx.strokeStyle=`hsla(200,60%,90%,${al})`;ctx.lineWidth=s*.35;for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*s*1.8,Math.sin(a)*s*1.8);ctx.stroke();}}
-    else if(t==='petal'){ctx.fillStyle=`hsla(${p.hue},80%,70%,${al})`;ctx.beginPath();ctx.ellipse(0,-s,s*.5,s*1.2,0,0,Math.PI*2);ctx.fill();}
-    else{ctx.beginPath();ctx.arc(0,0,s,0,Math.PI*2);ctx.fillStyle=`hsla(${p.hue},88%,72%,${al})`;ctx.fill();}
-    ctx.restore();
-  }
-
-  function draw(now){
-    animFrame=requestAnimationFrame(draw);
-    time=now*.001;
-    const T=theme,hB=T.hBase,hA=T.hAccent,hT=T.hTriad;
-    if(now-lb>=beatMs){lb=now;bp=1;sb=(sb+1)%4;syncLights(bp,energy);}
-    bp*=(.78+dance*.12);
-    let mic=0;if(analyser){const b=new Uint8Array(analyser.frequencyBinCount);analyser.getByteFrequencyData(b);mic=b.reduce((a,v)=>a+v,0)/b.length/255;}
-    const pulse=Math.max(bp,mic*1.8);
-    const cx=cv.width/2,cy=cv.height/2,R=Math.min(cv.width,cv.height)*.22;
-
-    ctx.fillStyle=`rgba(0,0,0,${.07+(1-energy)*.05})`;ctx.fillRect(0,0,cv.width,cv.height);
-
-    if(['space','dream','cold'].includes(T.bg)){stars.forEach(s=>{s.tw+=.01;const tw=.5+.5*Math.sin(s.tw);ctx.beginPath();ctx.arc(s.x*cv.width,s.y*cv.height,s.r*tw,0,Math.PI*2);ctx.fillStyle=`rgba(200,220,255,${.3*tw+pulse*.18})`;ctx.fill();});}
-    if(T.bg==='fire'){const g=ctx.createLinearGradient(0,cv.height,0,cv.height*.4);g.addColorStop(0,`hsla(15,100%,25%,${.08+pulse*.12})`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);}
-    if(T.bg==='gold'){const g=ctx.createRadialGradient(cx,cy,0,cx,cy,cv.width*.7);g.addColorStop(0,`hsla(45,100%,28%,${.07+pulse*.1})`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);}
-    if(T.bg==='ocean'||T.bg==='sad'){const g=ctx.createLinearGradient(0,0,0,cv.height);g.addColorStop(0,`hsla(210,80%,8%,${.05+pulse*.06})`);g.addColorStop(1,`hsla(190,80%,4%,.04)`);ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);}
-    if(T.bg==='forest'){const g=ctx.createLinearGradient(0,cv.height,0,0);g.addColorStop(0,`hsla(120,60%,8%,${.07+pulse*.08})`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);}
-    if(['club','neon','void','gold'].includes(T.bg)){smoke.forEach((s,i)=>{s.x+=s.vx;s.y+=s.vy;s.life-=.0012;if(s.life<=0||s.y<-s.size){smoke[i]=mkSmoke();return;}const g=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size*(1+pulse*.2));g.addColorStop(0,`hsla(${hB+10},20%,50%,${s.alpha*(.4+pulse*.5)})`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();});}
-    if(T.fx==='aurora'){for(let a=0;a<3;a++){ctx.beginPath();ctx.moveTo(0,cv.height*.3);for(let x=0;x<=cv.width;x+=20)ctx.lineTo(x,cv.height*.3+Math.sin(x*.008+time*.5+a)*80*(.5+pulse*.5));ctx.strokeStyle=`hsla(${(hB+a*30)%360},80%,60%,${.07+pulse*.1})`;ctx.lineWidth=30;ctx.stroke();}}
-    for(let i=5;i>=1;i--){const r=R*i*(1+pulse*.38*((6-i)/5)),a=.022+pulse*.085*(i/5);const g=ctx.createRadialGradient(cx,cy,r*.1,cx,cy,r);g.addColorStop(0,`hsla(${hB+i*20},80%,58%,${a*1.8})`);g.addColorStop(.5,`hsla(${hA},65%,45%,${a})`);g.addColorStop(1,'transparent');ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();}
-    lasers.forEach((l,i)=>{const lh=(hB+i*(360/NL))%360;l.angle+=l.speed*(1+pulse*3.5);const len=Math.max(cv.width,cv.height)*1.7,la=.05+pulse*.35;const x2=cx+Math.cos(l.angle)*len,y2=cy+Math.sin(l.angle)*len;const lg=ctx.createLinearGradient(cx,cy,x2,y2);lg.addColorStop(0,`hsla(${lh},100%,72%,${la})`);lg.addColorStop(.3,`hsla(${lh},90%,60%,${la*.3})`);lg.addColorStop(1,'transparent');ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x2,y2);ctx.strokeStyle=lg;ctx.lineWidth=l.width*(1+pulse*5);ctx.stroke();const x3=cx-Math.cos(l.angle)*len,y3=cy-Math.sin(l.angle)*len;const lg2=ctx.createLinearGradient(cx,cy,x3,y3);lg2.addColorStop(0,`hsla(${(lh+180)%360},100%,72%,${la})`);lg2.addColorStop(1,'transparent');ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x3,y3);ctx.strokeStyle=lg2;ctx.lineWidth=l.width*(1+pulse*5);ctx.stroke();});
-    if(T.fx==='tunnel'){for(let t=0;t<10;t++){const tr=R*(.1+t*.09+pulse*.04);ctx.beginPath();for(let s=0;s<=6;s++){const a=(s/6)*Math.PI*2-Math.PI/6+time*.25*(t%2===0?1:-1);(s===0?ctx.moveTo:ctx.lineTo).call(ctx,cx+Math.cos(a)*tr,cy+Math.sin(a)*tr);}ctx.closePath();ctx.strokeStyle=`hsla(${(hT+t*25)%360},80%,65%,${.07+pulse*.25})`;ctx.lineWidth=.8+pulse;ctx.stroke();}}
-    for(let ring=0;ring<2;ring++){ctx.beginPath();for(let i=0;i<=RING;i++){const a=(i/RING)*Math.PI*2-Math.PI/2+ring*.05,w=Math.sin(i*.15+time*(2.5+ring*1.2))*.5+Math.sin(i*.07+time*(1.3+ring*.8))*.5+Math.sin(i*.3+time*4+pulse*2)*.3*pulse,dist=R*((ring===0?.85:.76)+w*.1*energy+pulse*(.22-ring*.06));(i===0?ctx.moveTo:ctx.lineTo).call(ctx,cx+Math.cos(a)*dist,cy+Math.sin(a)*dist);}ctx.closePath();ctx.strokeStyle=`hsla(${ring===0?hB:hA},88%,68%,${(.28-ring*.1)+pulse*(.5-ring*.15)})`;ctx.lineWidth=(1.5-ring*.5)+pulse*(3-ring*.8);ctx.stroke();}
-    for(let i=0;i<BARS;i++){const a=(i/BARS)*Math.PI*2-Math.PI/2,bpb=pulse*(.5+.5*Math.abs(Math.sin(i*.2+time*2.1+sb*.8))),iR=R*1.02,oR=iR+R*(.05+bpb*energy*1.5);ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*iR,cy+Math.sin(a)*iR);ctx.lineTo(cx+Math.cos(a)*oR,cy+Math.sin(a)*oR);ctx.strokeStyle=`hsla(${(hB+i*(260/BARS))%360},95%,70%,${.35+bpb*.65})`;ctx.lineWidth=2+pulse*2.5;ctx.stroke();}
-    const oR2=R*(.17+pulse*.2),og=ctx.createRadialGradient(cx,cy,0,cx,cy,oR2);og.addColorStop(0,`hsla(${hB},100%,94%,${.5+pulse*.5})`);og.addColorStop(.35,`hsla(${hA},88%,68%,${.28+pulse*.38})`);og.addColorStop(1,`hsla(${hT},70%,40%,0)`);ctx.beginPath();ctx.arc(cx,cy,oR2,0,Math.PI*2);ctx.fillStyle=og;ctx.fill();
-    parts.forEach((p,idx)=>{
-      if(Math.random()<.008){p.type=theme.pType;p.hue=theme.hBase+Math.random()*60-30;}
-      p.trail.push({x:p.x,y:p.y});if(p.trail.length>10)p.trail.shift();
-      if(p.type==='rain'){p.vy=Math.abs(p.vy)*1.02+.5;}
-      else if(p.type==='snow'){p.vx+=Math.sin(time+p.life*10)*.05;p.vy=Math.abs(p.vy)*.3+.2;}
-      else if(p.type==='fire'){p.vy-=.08;p.vx+=(Math.random()-.5)*.1;}
-      else if(p.type==='money'){p.vy+=.04;p.vx+=Math.sin(time*2+p.life*5)*.05;}
-      p.x+=p.vx*(1+pulse*2.5);p.y+=p.vy*(1+pulse*2);p.life-=.003+pulse*.005;
-      if(p.life<=0||p.x<-30||p.x>cv.width+30||p.y<-30||p.y>cv.height+30){parts[idx]=spawnP();return;}
-      if(p.trail.length>2&&p.type==='spark'){ctx.beginPath();ctx.moveTo(p.trail[0].x,p.trail[0].y);p.trail.forEach(pt=>ctx.lineTo(pt.x,pt.y));ctx.strokeStyle=`hsla(${p.hue},80%,65%,${p.life*.22})`;ctx.lineWidth=p.r*.5;ctx.stroke();}
-      drawP(p,pulse);
-    });
-    if(T.fx==='strobe'&&bp>.82){ctx.fillStyle=`rgba(255,255,255,${(bp-.82)*.38})`;ctx.fillRect(0,0,cv.width,cv.height);}
-    if(pulse>.4){const fa=(pulse-.4)*.22;const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.min(cv.width,cv.height)*.75);fg.addColorStop(0,`hsla(${hB},100%,82%,${fa})`);fg.addColorStop(1,'transparent');ctx.fillStyle=fg;ctx.fillRect(0,0,cv.width,cv.height);}
-    const vg=ctx.createRadialGradient(cx,cy,cv.height*.25,cx,cy,cv.height*.9);vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.6)');ctx.fillStyle=vg;ctx.fillRect(0,0,cv.width,cv.height);
-    tickLyrics();
-  }
-  draw(performance.now());
 }
 
 // ── CONTROLS ──────────────────────────────────────────────────────────────────
 function toggleFullscreen(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
-function logout(){accessToken=null;currentTrackId=null;clearInterval(pollTimer);if(animFrame)cancelAnimationFrame(animFrame);killPlayer();document.getElementById('player').style.display='none';document.getElementById('login-screen').style.display='flex';}
+function logout(){accessToken=null;currentTrackId=null;clearInterval(pollTimer);if(beatTimer)clearInterval(beatTimer);killPlayer();document.getElementById('player').style.display='none';document.getElementById('login-screen').style.display='flex';}
 
 // ── POLL ──────────────────────────────────────────────────────────────────────
-async function poll(){
-  try{
-    const data=await spGet('/me/player/currently-playing');
-    if(!data||!data.item){
-      document.getElementById('track-name').textContent='Nothing playing';
-      document.getElementById('artist-name').textContent='';
-      document.getElementById('bpm-display').textContent='— BPM';
-      document.getElementById('status').style.display='block';
-      clearLD();return;
+async function poll() {
+  try {
+    const data = await spGet('/me/player/currently-playing');
+    if (!data || !data.item) {
+      document.getElementById('track-name').textContent = 'Nothing playing';
+      document.getElementById('artist-name').textContent = '';
+      document.getElementById('bpm-display').textContent = '— BPM';
+      document.getElementById('status').style.display = 'block';
+      clearLD(); return;
     }
-    const track=data.item,artist=track.artists.map(a=>a.name).join(', ');
-    document.getElementById('track-name').textContent=track.name;
-    document.getElementById('artist-name').textContent=artist;
-    document.getElementById('status').style.display='none';
-    playbackMs=data.progress_ms||0;lastPollAt=Date.now();
-    if(track.id!==currentTrackId){
-      currentTrackId=track.id;setTheme('default');
-      audioFeatures=await spGet('/audio-features/'+track.id);
-      if(audioFeatures&&audioFeatures.tempo)document.getElementById('bpm-display').textContent=Math.round(audioFeatures.tempo)+' BPM';
-      const[videoId]=await Promise.all([
-        searchYT(artist,track.name),
-        fetchLyrics(track.artists[0].name,track.name,track.album&&track.album.name)
+    const track = data.item, artist = track.artists.map(a=>a.name).join(', ');
+    document.getElementById('track-name').textContent = track.name;
+    document.getElementById('artist-name').textContent = artist;
+    document.getElementById('status').style.display = 'none';
+    playbackMs = data.progress_ms || 0;
+    lastPollAt = Date.now();
+
+    if (track.id !== currentTrackId) {
+      currentTrackId = track.id;
+      const af = await spGet('/audio-features/' + track.id);
+      if (af && af.tempo) {
+        tempo = af.tempo;
+        energy = af.energy || 0.5;
+        document.getElementById('bpm-display').textContent = Math.round(tempo) + ' BPM';
+        if (lightsActive) startBeatSync();
+      }
+      const [videoId] = await Promise.all([
+        searchYT(artist, track.name),
+        fetchLyrics(track.artists[0].name, track.name, track.album && track.album.name)
       ]);
-      if(videoId)loadVideo(videoId);else killPlayer();
-      startVis(audioFeatures);
+      if (videoId) loadVideo(videoId);
+      else showNoVideo();
     }
-  }catch(e){console.warn('Poll:',e);}
+  } catch(e) { console.warn('Poll:', e); }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-async function init(){
-  const params=new URLSearchParams(window.location.search),code=params.get('code');
-  if(code){
-    history.replaceState({},'',' ');
-    try{
-      accessToken=await exchangeCode(code);
-      document.getElementById('login-screen').style.display='none';
-      document.getElementById('player').style.display='block';
-      await tryMic();
+async function init() {
+  const params = new URLSearchParams(window.location.search), code = params.get('code');
+  if (code) {
+    history.replaceState({}, '', ' ');
+    try {
+      accessToken = await exchangeCode(code);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('player').style.display = 'block';
       await poll();
-      pollTimer=setInterval(poll,4000);
-    }catch(e){alert('Auth failed. Redirect URI must match: '+REDIRECT_URI);}
+      pollTimer = setInterval(poll, 4000);
+    } catch(e) { alert('Auth failed. Redirect URI must match: ' + REDIRECT_URI); }
   }
 }
 init();
