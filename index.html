@@ -18,7 +18,7 @@
   #player{display:none;width:100vw;height:100vh;position:relative;background:#000;}
   #yt-wrap{position:absolute;inset:0;z-index:1;background:#000;}
   #yt-wrap iframe{width:100%;height:100%;border:none;display:block;}
-  #no-video{position:absolute;inset:0;z-index:1;display:none;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0a0a0a 0%,#000 100%);}
+  #no-video{position:absolute;inset:0;z-index:1;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:radial-gradient(ellipse at center,#0a0a0a 0%,#000 100%);}
   #no-video p{font-size:.7rem;letter-spacing:.3em;color:#1a1a1a;text-transform:uppercase;}
 
   #overlay{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:120px 40px 32px;background:linear-gradient(transparent,rgba(0,0,0,.92));display:flex;flex-direction:column;gap:10px;pointer-events:none;}
@@ -81,7 +81,7 @@
     <svg viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
     <span>Live</span>
   </div>
-  <div id="yt-wrap"><iframe id="yt-iframe" allowfullscreen allow="autoplay; fullscreen"></iframe></div>
+  <div id="yt-wrap"><iframe id="yt-frame" allowfullscreen allow="autoplay; fullscreen; encrypted-media"></iframe></div>
   <div id="no-video"><p>No video found</p></div>
   <div id="status"><p>Waiting for Spotify...</p></div>
   <div id="overlay">
@@ -126,22 +126,21 @@ const SCOPES       = 'user-read-currently-playing user-read-playback-state';
 const YT_KEY       = 'AIzaSyCDR7-_K3eMUaijeS7zo0nD1gv0vnDIs4Y';
 const HA_URL       = 'http://homeassistant.local:8123';
 const HA_TOKEN     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI3MWU4MzZjZmMxMjY0NjMzOTc3NDEzYjVjNDc1NWUxZCIsImlhdCI6MTc3Nzg0NDUxNywiZXhwIjoyMDkzMjA0NTE3fQ.isDztHb5r-xuHTFMBfm5fep9mhdssU73NhmDWIhu5RE';
+const SYNC_TOL     = 3.0; // seconds drift before re-seek
 
-// Invidious instances to try in order (public, no ads)
-const INVIDIOUS = [
-  'https://invidious.io',
-  'https://inv.nadeko.net',
-  'https://invidious.nerdvpn.de',
-  'https://vid.puffyan.us',
+// Piped embed instances — these allow iframe embedding unlike most Invidious
+// Format: https://[instance]/embed/[videoId]?t=[seconds]
+const PIPED_INSTANCES = [
+  'https://piped.video',
+  'https://piped.privacydev.net',
+  'https://piped.smnz.de',
+  'https://piped.adminforge.de',
+  'https://piped.ggtyler.dev',
 ];
-
-// Sync tolerance — if video is more than this many seconds off, re-seek
-const SYNC_TOL = 2.0;
 
 let accessToken    = null;
 let currentTrackId = null;
 let pollTimer      = null;
-let syncTimer      = null;
 let lightsActive   = false;
 let allLights      = [];
 let selectedLights = [];
@@ -153,81 +152,93 @@ let lastPollAt     = 0;
 let tempo          = 120;
 let energy         = 0.5;
 let currentVideoId = null;
-let invidiousIdx   = 0;
-let videoOffset    = 0;    // seconds: how far into the YT video the song actually starts
-let offsetLocked   = false;// true once we've measured and confirmed offset
-let seekPending    = false;
+let pipedIdx       = 0;
+let lastSpotifyPos = 0;
+let lastPollWall   = 0;
+let loadTime       = 0;
+let loadPos        = 0;
 
-// ── INVIDIOUS VIDEO PLAYER ────────────────────────────────────────────────────
-// Invidious embed supports ?t=SEC for start time and plays without ads.
-// We use postMessage to communicate with the iframe for seeking.
-// Invidious supports the YouTube iframe postMessage protocol partially,
-// so we use a lightweight message-based approach + periodic re-seek via src update.
-
-function buildInvidiousSrc(videoId, startSec) {
-  const base = INVIDIOUS[invidiousIdx % INVIDIOUS.length];
-  return `${base}/embed/${videoId}?autoplay=1&t=${Math.floor(startSec)}&muted=1&listen=0&loop=1`;
+// ── VIDEO PLAYER ──────────────────────────────────────────────────────────────
+function buildSrc(videoId, startSec, instanceIdx) {
+  const base = PIPED_INSTANCES[instanceIdx % PIPED_INSTANCES.length];
+  return `${base}/embed/${videoId}?t=${Math.floor(Math.max(0,startSec))}&autoplay=1&listen=0&muted=1`;
 }
 
-function loadVideo(videoId, spotifyPosSec) {
+async function tryLoadVideo(videoId, startSec) {
+  // Try each Piped instance until one loads
+  // We detect failure by listening for an error event on the iframe
   currentVideoId = videoId;
-  offsetLocked = false;
-  videoOffset = 0;
-  seekPending = false;
-
+  loadTime = Date.now();
+  loadPos  = startSec;
   document.getElementById('yt-wrap').style.display = 'block';
   document.getElementById('no-video').style.display = 'none';
-  setSyncHud('syncing', 'Detecting sync...');
-
-  // Start the video — Invidious will start at t=spotifyPosSec
-  // giving us a rough sync immediately
-  const iframe = document.getElementById('yt-iframe');
-  iframe.src = buildInvidiousSrc(videoId, spotifyPosSec);
-
-  // After a few seconds, measure the drift and lock the offset
-  // We do this by comparing Spotify position to where we told the video to start
-  setTimeout(() => detectOffset(videoId, spotifyPosSec), 3000);
+  setSyncHud('syncing', 'Loading...');
+  tryInstance(videoId, startSec, 0);
 }
 
-function detectOffset(videoId, startedAtSec) {
-  // At the moment we started the video, Spotify was at startedAtSec.
-  // Now Spotify has advanced by ~3s. The video has also played ~3s from startedAtSec.
-  // If they're aligned, offset = 0. If not, we correct.
-  const nowSpotifySec = (playbackMs + (Date.now() - lastPollAt)) / 1000;
-  const videoShouldBe = nowSpotifySec;
-  const videoActuallyAt = startedAtSec + 3; // rough estimate of where video is
-  const drift = videoShouldBe - videoActuallyAt;
-
-  // drift > 0 means video is behind Spotify → seek video forward
-  // drift < 0 means video is ahead → seek video back
-  if (Math.abs(drift) > 0.5) {
-    seekVideoTo(nowSpotifySec);
+function tryInstance(videoId, startSec, idx) {
+  if (idx >= PIPED_INSTANCES.length) {
+    // All Piped instances failed — fall back to YouTube
+    console.log('All Piped failed, falling back to YouTube');
+    loadYouTubeFallback(videoId, startSec);
+    return;
   }
+  const frame = document.getElementById('yt-frame');
+  const src = buildSrc(videoId, startSec, idx);
+  frame.src = src;
+  setSyncHud('syncing', `Trying source ${idx+1}...`);
 
-  offsetLocked = true;
+  // If iframe fails to load (blocked), try next instance after timeout
+  const timeout = setTimeout(() => {
+    // Check if iframe actually loaded something useful
+    // We can't read cross-origin, so we use a heuristic:
+    // if the instance is known-good we trust it, otherwise move on
+    if (idx === 0) {
+      setSyncHud('synced', 'Playing (no ads)');
+    } else {
+      tryInstance(videoId, startSec, idx + 1);
+    }
+  }, 5000);
+
+  frame.onload = () => {
+    clearTimeout(timeout);
+    setSyncHud('synced', 'Synced · No ads');
+  };
+  frame.onerror = () => {
+    clearTimeout(timeout);
+    tryInstance(videoId, startSec, idx + 1);
+  };
+}
+
+function loadYouTubeFallback(videoId, startSec) {
+  // Fall back to YouTube embed if all Piped instances fail
+  const frame = document.getElementById('yt-frame');
+  frame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&controls=0&start=${Math.floor(startSec)}`;
   setSyncHud('synced', 'Synced');
 }
 
-function seekVideoTo(spotifyPosSec) {
+function seekTo(spotifyPosSec) {
   if (!currentVideoId) return;
-  const iframe = document.getElementById('yt-iframe');
-  iframe.src = buildInvidiousSrc(currentVideoId, Math.max(0, spotifyPosSec));
+  const frame = document.getElementById('yt-frame');
+  const currentSrc = frame.src;
+  // Rebuild src with new t= param on same instance
+  const match = currentSrc.match(/\/embed\/([^?]+)/);
+  if (!match) return;
+  const isYT = currentSrc.includes('youtube.com');
+  if (isYT) {
+    frame.src = `https://www.youtube.com/embed/${currentVideoId}?autoplay=1&mute=1&rel=0&modestbranding=1&controls=0&start=${Math.floor(Math.max(0,spotifyPosSec))}`;
+  } else {
+    // Extract which Piped instance is being used
+    const instanceBase = PIPED_INSTANCES.find(p => currentSrc.startsWith(p)) || PIPED_INSTANCES[0];
+    frame.src = `${instanceBase}/embed/${currentVideoId}?t=${Math.floor(Math.max(0,spotifyPosSec))}&autoplay=1&listen=0&muted=1`;
+  }
   setSyncHud('syncing', 'Re-syncing...');
   setTimeout(() => setSyncHud('synced', 'Synced'), 2000);
 }
 
-function syncCheck() {
-  if (!currentVideoId || !offsetLocked) return;
-  const nowSpotifySec = (playbackMs + (Date.now() - lastPollAt)) / 1000;
-  // We can't read the iframe's currentTime from a cross-origin Invidious iframe,
-  // so we trust that if we re-seeked correctly it's playing in sync.
-  // We re-sync on every poll by checking if Spotify moved more than expected.
-  // (handled in poll())
-}
-
 function showNoVideo() {
   currentVideoId = null;
-  document.getElementById('yt-iframe').src = '';
+  document.getElementById('yt-frame').src = '';
   document.getElementById('yt-wrap').style.display = 'none';
   document.getElementById('no-video').style.display = 'flex';
   setSyncHud('', '—');
@@ -235,8 +246,7 @@ function showNoVideo() {
 
 function setSyncHud(cls, text) {
   const el = document.getElementById('sync-hud');
-  el.className = cls;
-  el.textContent = text;
+  el.className = cls; el.textContent = text;
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -249,101 +259,46 @@ async function exchangeCode(code){const r=await fetch('https://accounts.spotify.
 async function spGet(path){const r=await fetch('https://api.spotify.com/v1'+path,{headers:{Authorization:'Bearer '+accessToken}});if(r.status===204||r.status===401)return null;return r.json();}
 
 // ── YOUTUBE SEARCH ────────────────────────────────────────────────────────────
-async function searchYT(artist, track) {
-  const q = encodeURIComponent(artist+' '+track+' official music video');
-  try {
-    const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${YT_KEY}`);
-    const d = await r.json();
-    if (d.items && d.items.length > 0) return d.items[0].id.videoId;
-  } catch(e) { console.warn('YT search:', e); }
+async function searchYT(artist,track){
+  const q=encodeURIComponent(artist+' '+track+' official music video');
+  try{const r=await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${q}&type=video&videoCategoryId=10&maxResults=1&key=${YT_KEY}`);const d=await r.json();if(d.items&&d.items.length>0)return d.items[0].id.videoId;}catch(e){console.warn('YT:',e);}
   return null;
 }
 
 // ── LRCLIB LYRICS ─────────────────────────────────────────────────────────────
-async function fetchLyrics(artist, track, album) {
-  syncedLyrics = []; currentLyricIdx = -1; clearLD();
-  try {
-    const q = new URLSearchParams({ artist_name: artist, track_name: track });
-    if (album) q.set('album_name', album);
-    const r = await fetch('https://lrclib.net/api/get?' + q);
-    if (!r.ok) return;
-    const d = await r.json();
-    if (d.syncedLyrics) syncedLyrics = parseLRC(d.syncedLyrics);
-    else if (d.plainLyrics) {
-      const ls = d.plainLyrics.split('\n').filter(l => l.trim());
-      syncedLyrics = ls.map((text, i) => ({ time: (i / ls.length) * 180000, text }));
-    }
-  } catch(e) { console.warn('Lyrics:', e); }
+async function fetchLyrics(artist,track,album){
+  syncedLyrics=[];currentLyricIdx=-1;clearLD();
+  try{const q=new URLSearchParams({artist_name:artist,track_name:track});if(album)q.set('album_name',album);const r=await fetch('https://lrclib.net/api/get?'+q);if(!r.ok)return;const d=await r.json();if(d.syncedLyrics)syncedLyrics=parseLRC(d.syncedLyrics);else if(d.plainLyrics){const ls=d.plainLyrics.split('\n').filter(l=>l.trim());syncedLyrics=ls.map((text,i)=>({time:(i/ls.length)*180000,text}));}}catch(e){console.warn('Lyrics:',e);}
 }
-function parseLRC(lrc) {
-  return lrc.split('\n').reduce((a, l) => {
-    const m = l.match(/^\[(\d+):(\d+\.\d+)\](.*)/);
-    if (m) { const ms=parseInt(m[1])*60000+parseFloat(m[2])*1000, t=m[3].trim(); if(t) a.push({time:ms,text:t}); }
-    return a;
-  }, []).sort((a,b)=>a.time-b.time);
-}
-function clearLD() { ['lyric-prev','lyric-current','lyric-next'].forEach(id=>document.getElementById(id).textContent=''); }
+function parseLRC(lrc){return lrc.split('\n').reduce((a,l)=>{const m=l.match(/^\[(\d+):(\d+\.\d+)\](.*)/);if(m){const ms=parseInt(m[1])*60000+parseFloat(m[2])*1000,t=m[3].trim();if(t)a.push({time:ms,text:t});}return a;},[]).sort((a,b)=>a.time-b.time);}
+function clearLD(){['lyric-prev','lyric-current','lyric-next'].forEach(id=>document.getElementById(id).textContent='');}
 
-// Lyric keyword → color
-const LYRIC_HUES = {
-  money:['money','cash','dollar','rich','gold','paid','bands','bag','flex'],
-  fire: ['fire','burn','flame','hot','blaze','lit','hell','rage'],
-  love: ['love','heart','kiss','baby','babe','forever','roses','soul','honey'],
-  space:['space','stars','galaxy','moon','sky','cosmos','heaven','fly'],
-  rain: ['rain','storm','tears','cry','flood','ocean','waves'],
-  dark: ['dark','shadow','death','blood','pain','broken','fear','nightmare'],
-  nature:['trees','flowers','green','forest','sunshine','bloom','earth'],
-};
-const HUE_MAP = {money:50,fire:10,love:340,space:220,rain:200,dark:260,nature:120};
+const LYRIC_HUES={money:['money','cash','dollar','rich','gold','paid','bands','bag','flex'],fire:['fire','burn','flame','hot','blaze','lit','hell','rage'],love:['love','heart','kiss','baby','babe','forever','roses','soul','honey'],space:['space','stars','galaxy','moon','sky','cosmos','heaven','fly'],rain:['rain','storm','tears','cry','flood','ocean','waves'],dark:['dark','shadow','death','blood','pain','broken','fear','nightmare'],nature:['trees','flowers','green','forest','sunshine','bloom','earth']};
+const HUE_MAP={money:50,fire:10,love:340,space:220,rain:200,dark:260,nature:120};
+function lyricHue(text){if(!text)return null;const lower=text.toLowerCase();for(const[t,words]of Object.entries(LYRIC_HUES))if(words.some(w=>lower.includes(w)))return HUE_MAP[t];return null;}
 
-function lyricHue(text) {
-  if (!text) return null;
-  const lower = text.toLowerCase();
-  for (const [t,words] of Object.entries(LYRIC_HUES)) if (words.some(w=>lower.includes(w))) return HUE_MAP[t];
-  return null;
-}
-
-function tickLyrics() {
-  if (!syncedLyrics.length) return;
-  const now = playbackMs + (Date.now() - lastPollAt);
-  let idx = -1;
-  for (let i=0; i<syncedLyrics.length; i++) { if(syncedLyrics[i].time<=now) idx=i; else break; }
-  if (idx !== currentLyricIdx && idx >= 0) {
-    currentLyricIdx = idx;
-    const c=syncedLyrics[idx], p=syncedLyrics[idx-1], n=syncedLyrics[idx+1];
-    document.getElementById('lyric-prev').textContent = p?p.text:'';
-    document.getElementById('lyric-current').textContent = c.text;
-    document.getElementById('lyric-next').textContent = n?n.text:'';
-    const h = lyricHue([p,c,n].filter(Boolean).map(l=>l.text).join(' '));
-    if (h !== null) {
-      document.documentElement.style.setProperty('--tglow', `hsla(${h},90%,65%,0.7)`);
-      document.getElementById('lyric-current').style.color = `hsl(${h},95%,85%)`;
-      if (lightsActive && selectedLights.length) {
-        selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,hs_color:[h,90],brightness:200,transition:0.3}));
-      }
-    }
+function tickLyrics(){
+  if(!syncedLyrics.length)return;
+  const now=playbackMs+(Date.now()-lastPollAt);
+  let idx=-1;
+  for(let i=0;i<syncedLyrics.length;i++){if(syncedLyrics[i].time<=now)idx=i;else break;}
+  if(idx!==currentLyricIdx&&idx>=0){
+    currentLyricIdx=idx;
+    const c=syncedLyrics[idx],p=syncedLyrics[idx-1],n=syncedLyrics[idx+1];
+    document.getElementById('lyric-prev').textContent=p?p.text:'';
+    document.getElementById('lyric-current').textContent=c.text;
+    document.getElementById('lyric-next').textContent=n?n.text:'';
+    const h=lyricHue([p,c,n].filter(Boolean).map(l=>l.text).join(' '));
+    if(h!==null){document.documentElement.style.setProperty('--tglow',`hsla(${h},90%,65%,0.7)`);document.getElementById('lyric-current').style.color=`hsl(${h},95%,85%)`;if(lightsActive&&selectedLights.length)selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,hs_color:[h,90],brightness:200,transition:0.3}));}
   }
 }
-setInterval(tickLyrics, 100);
+setInterval(tickLyrics,100);
 
 // ── HOME ASSISTANT ────────────────────────────────────────────────────────────
 async function haGet(p){try{return(await fetch(HA_URL+'/api'+p,{headers:{Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json'}})).json();}catch{return null;}}
 async function haPost(p,b){try{await fetch(HA_URL+'/api'+p,{method:'POST',headers:{Authorization:'Bearer '+HA_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(b)});}catch{}}
-
-// Beat sync from Spotify tempo
-const LIGHT_HUES=[0,30,60,120,180,220,270,300,340];
-let hueIdx=0;
-function startBeatSync(){
-  if(beatTimer)clearInterval(beatTimer);
-  const ms=60000/tempo;
-  beatTimer=setInterval(()=>{
-    if(!lightsActive||!selectedLights.length)return;
-    const hue=LIGHT_HUES[hueIdx++%LIGHT_HUES.length],bri=Math.round(130+energy*120);
-    selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,hs_color:[hue,100],brightness:bri,transition:0}));
-    setTimeout(()=>{if(!lightsActive)return;selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,brightness:Math.round(15+energy*35),transition:0}));},Math.min(ms*.4,200));
-  },ms);
-}
-
+const LIGHT_HUES=[0,30,60,120,180,220,270,300,340];let hueIdx=0;
+function startBeatSync(){if(beatTimer)clearInterval(beatTimer);const ms=60000/tempo;beatTimer=setInterval(()=>{if(!lightsActive||!selectedLights.length)return;const hue=LIGHT_HUES[hueIdx++%LIGHT_HUES.length],bri=Math.round(130+energy*120);selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,hs_color:[hue,100],brightness:bri,transition:0}));setTimeout(()=>{if(!lightsActive)return;selectedLights.forEach(id=>haPost('/services/light/turn_on',{entity_id:id,brightness:Math.round(15+energy*35),transition:0}));},Math.min(ms*.4,200));},ms);}
 async function loadAllLights(){document.getElementById('ha-status').textContent='Connecting...';const s=await haGet('/states');if(!s){document.getElementById('ha-status').textContent='Could not reach HA — must be on home WiFi.';return;}allLights=s.filter(x=>x.entity_id.startsWith('light.'));document.getElementById('ha-status').textContent=`Found ${allLights.length} lights`;renderLights();}
 function renderLights(){const list=document.getElementById('lights-list');list.innerHTML='';allLights.forEach(l=>{const sel=selectedLights.includes(l.entity_id),div=document.createElement('div');div.className='light-item'+(sel?' selected':'');div.innerHTML=`<div class="light-dot"></div><div class="light-name">${l.attributes.friendly_name||l.entity_id}</div><div class="light-check">✓</div>`;div.onclick=()=>{selectedLights=selectedLights.includes(l.entity_id)?selectedLights.filter(id=>id!==l.entity_id):[...selectedLights,l.entity_id];div.classList.toggle('selected',selectedLights.includes(l.entity_id));div.querySelector('.light-check').style.opacity=selectedLights.includes(l.entity_id)?'1':'0';};list.appendChild(div);});}
 function selectAll(){selectedLights=allLights.map(l=>l.entity_id);renderLights();}
@@ -353,71 +308,51 @@ function saveLights(){lightsActive=selectedLights.length>0;document.getElementBy
 
 // ── CONTROLS ──────────────────────────────────────────────────────────────────
 function toggleFullscreen(){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
-function logout(){accessToken=null;currentTrackId=null;clearInterval(pollTimer);if(beatTimer)clearInterval(beatTimer);document.getElementById('yt-iframe').src='';document.getElementById('player').style.display='none';document.getElementById('login-screen').style.display='flex';}
+function logout(){accessToken=null;currentTrackId=null;clearInterval(pollTimer);if(beatTimer)clearInterval(beatTimer);document.getElementById('yt-frame').src='';document.getElementById('player').style.display='none';document.getElementById('login-screen').style.display='flex';}
 
 // ── POLL ──────────────────────────────────────────────────────────────────────
-let lastSpotifyPos = 0;
-let lastPollWall   = 0;
-
-async function poll() {
-  try {
-    const data = await spGet('/me/player/currently-playing');
-    if (!data || !data.item) {
-      document.getElementById('track-name').textContent='Nothing playing';
-      document.getElementById('artist-name').textContent='';
-      document.getElementById('status').style.display='block';
-      clearLD(); return;
-    }
-
-    const track=data.item, artist=track.artists.map(a=>a.name).join(', ');
+async function poll(){
+  try{
+    const data=await spGet('/me/player/currently-playing');
+    if(!data||!data.item){document.getElementById('track-name').textContent='Nothing playing';document.getElementById('artist-name').textContent='';document.getElementById('status').style.display='block';clearLD();return;}
+    const track=data.item,artist=track.artists.map(a=>a.name).join(', ');
     document.getElementById('track-name').textContent=track.name;
     document.getElementById('artist-name').textContent=artist;
     document.getElementById('status').style.display='none';
+    const spotifyPosSec=(data.progress_ms||0)/1000;
+    playbackMs=data.progress_ms||0;lastPollAt=Date.now();
 
-    const spotifyPosSec = (data.progress_ms||0) / 1000;
-    playbackMs = data.progress_ms || 0;
-    lastPollAt = Date.now();
+    // Detect if user skipped/scrubbed
+    const timeSinceLastPoll=(Date.now()-lastPollWall)/1000;
+    const expectedPos=lastSpotifyPos+timeSinceLastPoll;
+    const jumped=lastPollWall>0&&Math.abs(spotifyPosSec-expectedPos)>SYNC_TOL;
+    lastSpotifyPos=spotifyPosSec;lastPollWall=Date.now();
 
-    // Detect seek/skip — if Spotify jumped more than expected since last poll, re-sync video
-    const expectedPos = lastSpotifyPos + (Date.now() - lastPollWall) / 1000;
-    const jumped = Math.abs(spotifyPosSec - expectedPos) > SYNC_TOL;
-    lastSpotifyPos = spotifyPosSec;
-    lastPollWall   = Date.now();
-
-    if (track.id !== currentTrackId) {
-      // New track
-      currentTrackId = track.id;
-      const af = await spGet('/audio-features/' + track.id);
-      if (af && af.tempo) { tempo=af.tempo; energy=af.energy||0.5; if(lightsActive) startBeatSync(); }
-
-      const [videoId] = await Promise.all([
-        searchYT(artist, track.name),
-        fetchLyrics(track.artists[0].name, track.name, track.album&&track.album.name)
-      ]);
-
-      if (videoId) loadVideo(videoId, spotifyPosSec);
+    if(track.id!==currentTrackId){
+      currentTrackId=track.id;
+      const af=await spGet('/audio-features/'+track.id);
+      if(af&&af.tempo){tempo=af.tempo;energy=af.energy||0.5;if(lightsActive)startBeatSync();}
+      const[videoId]=await Promise.all([searchYT(artist,track.name),fetchLyrics(track.artists[0].name,track.name,track.album&&track.album.name)]);
+      if(videoId)tryLoadVideo(videoId,spotifyPosSec);
       else showNoVideo();
-
-    } else if (jumped && currentVideoId) {
-      // User scrubbed/skipped in Spotify — re-sync video
-      seekVideoTo(spotifyPosSec);
+    } else if(jumped&&currentVideoId){
+      seekTo(spotifyPosSec);
     }
-
-  } catch(e) { console.warn('Poll:', e); }
+  }catch(e){console.warn('Poll:',e);}
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-async function init() {
-  const params=new URLSearchParams(window.location.search), code=params.get('code');
-  if (code) {
+async function init(){
+  const params=new URLSearchParams(window.location.search),code=params.get('code');
+  if(code){
     history.replaceState({},'','');
-    try {
-      accessToken = await exchangeCode(code);
+    try{
+      accessToken=await exchangeCode(code);
       document.getElementById('login-screen').style.display='none';
       document.getElementById('player').style.display='block';
       await poll();
-      pollTimer = setInterval(poll, 4000);
-    } catch(e) { alert('Auth failed. Redirect URI must match: '+REDIRECT_URI); }
+      pollTimer=setInterval(poll,4000);
+    }catch(e){alert('Auth failed. Redirect URI must match: '+REDIRECT_URI);}
   }
 }
 init();
